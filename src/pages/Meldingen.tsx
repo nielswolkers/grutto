@@ -47,6 +47,7 @@ interface GroupInvitation {
   group_id: string;
   status: string;
   invited_by: string;
+  request_type?: string | null;
   group?: {
     id: string;
     name: string;
@@ -54,6 +55,25 @@ interface GroupInvitation {
   inviter?: {
     full_name: string;
     display_name: string | null;
+    username?: string;
+  };
+}
+
+interface GroupJoinRequest {
+  id: string;
+  group_id: string;
+  user_id: string;
+  status: string;
+  request_type: string | null;
+  group?: {
+    id: string;
+    name: string;
+  };
+  requester?: {
+    full_name: string;
+    display_name: string | null;
+    username: string;
+    avatar_url: string | null;
   };
 }
 
@@ -69,6 +89,7 @@ const Meldingen = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [eventInvitations, setEventInvitations] = useState<EventInvitation[]>([]);
   const [groupInvitations, setGroupInvitations] = useState<GroupInvitation[]>([]);
+  const [groupJoinRequests, setGroupJoinRequests] = useState<GroupJoinRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -76,6 +97,7 @@ const Meldingen = () => {
       loadNotifications();
       loadEventInvitations();
       loadGroupInvitations();
+      loadGroupJoinRequests();
       markAllAsReadOnOpen();
     }
   }, [user]);
@@ -135,11 +157,13 @@ const Meldingen = () => {
     if (!user) return;
 
     try {
+      // Only load invitations where I was invited (not my own requests)
       const { data: invitations } = await supabase
         .from("group_members")
-        .select("id, group_id, status, invited_by")
+        .select("id, group_id, status, invited_by, request_type")
         .eq("user_id", user.id)
-        .eq("status", "pending");
+        .eq("status", "pending")
+        .or("request_type.is.null,request_type.eq.invite");
 
       if (!invitations || invitations.length === 0) {
         setGroupInvitations([]);
@@ -157,7 +181,7 @@ const Meldingen = () => {
       const inviterIds = invitations.map(i => i.invited_by);
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("user_id, full_name, display_name")
+        .select("user_id, full_name, display_name, username")
         .in("user_id", inviterIds);
 
       const enrichedInvitations = invitations.map(inv => ({
@@ -169,6 +193,103 @@ const Meldingen = () => {
       setGroupInvitations(enrichedInvitations);
     } catch (error) {
       console.error("Failed to load group invitations:", error);
+    }
+  };
+
+  const loadGroupJoinRequests = async () => {
+    if (!user) return;
+
+    try {
+      // Get groups where I am the owner
+      const { data: myGroups } = await supabase
+        .from("study_groups")
+        .select("id, name")
+        .eq("owner_id", user.id);
+
+      if (!myGroups || myGroups.length === 0) {
+        setGroupJoinRequests([]);
+        return;
+      }
+
+      const myGroupIds = myGroups.map(g => g.id);
+
+      // Get pending join requests for my groups
+      const { data: requests } = await supabase
+        .from("group_members")
+        .select("id, group_id, user_id, status, request_type")
+        .in("group_id", myGroupIds)
+        .eq("status", "pending")
+        .eq("request_type", "request");
+
+      if (!requests || requests.length === 0) {
+        setGroupJoinRequests([]);
+        return;
+      }
+
+      // Load requester profiles
+      const requesterIds = requests.map(r => r.user_id);
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, display_name, username, avatar_url")
+        .in("user_id", requesterIds);
+
+      const enrichedRequests = requests.map(req => ({
+        ...req,
+        group: myGroups.find(g => g.id === req.group_id),
+        requester: profiles?.find(p => p.user_id === req.user_id)
+      }));
+
+      setGroupJoinRequests(enrichedRequests);
+    } catch (error) {
+      console.error("Failed to load group join requests:", error);
+    }
+  };
+
+  const respondToJoinRequest = async (request: GroupJoinRequest, accept: boolean) => {
+    if (!user) return;
+
+    try {
+      if (accept) {
+        // Accept - update status to accepted
+        await supabase
+          .from("group_members")
+          .update({ 
+            status: "accepted",
+            responded_at: new Date().toISOString()
+          })
+          .eq("id", request.id);
+
+        // Notify the requester
+        await supabase.from("notifications").insert({
+          recipient_id: request.user_id,
+          sender_id: user.id,
+          type: "group_request_accepted",
+          message: `Je verzoek om lid te worden van "${request.group?.name}" is geaccepteerd!`,
+        });
+
+        toast.success("Verzoek geaccepteerd");
+      } else {
+        // Decline - delete the request
+        await supabase
+          .from("group_members")
+          .delete()
+          .eq("id", request.id);
+
+        // Notify the requester
+        await supabase.from("notifications").insert({
+          recipient_id: request.user_id,
+          sender_id: user.id,
+          type: "group_request_declined",
+          message: `Je verzoek om lid te worden van "${request.group?.name}" is afgewezen.`,
+        });
+
+        toast.success("Verzoek afgewezen");
+      }
+
+      loadGroupJoinRequests();
+    } catch (error) {
+      console.error("Error responding to join request:", error);
+      toast.error("Kon niet reageren op verzoek");
     }
   };
 
@@ -364,7 +485,7 @@ const Meldingen = () => {
 
   if (!user) return null;
 
-  const hasAnyContent = notifications.length > 0 || eventInvitations.length > 0 || groupInvitations.length > 0;
+  const hasAnyContent = notifications.length > 0 || eventInvitations.length > 0 || groupInvitations.length > 0 || groupJoinRequests.length > 0;
 
   return (
     <div className="w-full">
@@ -504,6 +625,51 @@ const Meldingen = () => {
                   variant="outline" 
                   className="rounded-full h-9 text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/10"
                   onClick={() => respondToGroupInvitation(invitation, false)}
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Weiger
+                </Button>
+              </div>
+            </div>
+          ))}
+
+          {/* Group Join Requests (for group owners) */}
+          {groupJoinRequests.map((request) => (
+            <div key={request.id} className="rounded-2xl border bg-card border-border p-5">
+              <div className="flex items-start justify-between gap-4 mb-3">
+                <p className="text-[15px] flex-1">
+                  <span className="font-semibold">
+                    {request.requester?.display_name || request.requester?.full_name}
+                  </span>
+                  {' '}wil lid worden van "{request.group?.name}".
+                </p>
+              </div>
+
+              <div className="bg-secondary/50 rounded-xl p-4 mb-3">
+                <div className="flex items-center gap-3">
+                  <Users className="w-5 h-5 text-muted-foreground shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm">{request.requester?.display_name || request.requester?.full_name}</p>
+                    <p className="text-xs text-muted-foreground">@{request.requester?.username}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 mb-3">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="rounded-full h-9"
+                  onClick={() => respondToJoinRequest(request, true)}
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Bevestig
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="rounded-full h-9 text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/10"
+                  onClick={() => respondToJoinRequest(request, false)}
                 >
                   <X className="w-4 h-4 mr-2" />
                   Weiger

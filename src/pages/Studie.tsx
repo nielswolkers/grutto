@@ -9,13 +9,15 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Users, X, UserPlus, Play, Pause, Clock, ChevronLeft, MessageCircle, Settings, Trash2, Camera, FolderOpen } from "lucide-react";
+import { Plus, Users, X, UserPlus, Play, Pause, Clock, ChevronLeft, MessageCircle, Settings, Trash2, Camera, FolderOpen, Newspaper } from "lucide-react";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { format, startOfDay, endOfDay } from "date-fns";
-import { GroupChat } from "@/components/studie/GroupChat";
+import { GroupPosts } from "@/components/studie/GroupPosts";
 import { GroupMaterials } from "@/components/studie/GroupMaterials";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { useVerifiedGroups } from "@/hooks/useVerifiedStatus";
 
 interface StudyGroup {
   id: string;
@@ -170,7 +172,8 @@ export default function Studie() {
 
   // Selected group for detail view
   const [selectedGroup, setSelectedGroup] = useState<StudyGroup | null>(null);
-  const [activeTab, setActiveTab] = useState("members");
+  const [activeTab, setActiveTab] = useState("posts");
+  const { verifiedGroupIds } = useVerifiedGroups();
 
   // Group editing
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -1156,22 +1159,26 @@ export default function Studie() {
           </CardContent>
         </Card>
 
-        {/* Tabs for Members, Chat, Materials */}
+        {/* Tabs for Posts, Members, Materials - reordered, no study timer */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="posts" className="gap-2">
+              <Newspaper className="w-4 h-4" />
+              Posts
+            </TabsTrigger>
             <TabsTrigger value="members" className="gap-2">
               <Users className="w-4 h-4" />
               Leden
-            </TabsTrigger>
-            <TabsTrigger value="chat" className="gap-2">
-              <MessageCircle className="w-4 h-4" />
-              Chat
             </TabsTrigger>
             <TabsTrigger value="materials" className="gap-2">
               <FolderOpen className="w-4 h-4" />
               Materiaal
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="posts">
+            <GroupPosts groupId={selectedGroup.id} />
+          </TabsContent>
 
           <TabsContent value="members" className="space-y-4">
             {/* Owner - fetch profile */}
@@ -1269,10 +1276,6 @@ export default function Studie() {
                 })}
               </>
             )}
-          </TabsContent>
-
-          <TabsContent value="chat">
-            <GroupChat groupId={selectedGroup.id} />
           </TabsContent>
 
           <TabsContent value="materials">

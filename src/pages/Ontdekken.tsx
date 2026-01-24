@@ -424,6 +424,33 @@ export default function Ontdekken() {
     return () => clearTimeout(debounce);
   }, [searchQuery]);
 
+  // Handle Ctrl+V paste for images
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (file) {
+            setSelectedImage(file);
+            setSelectedFile(null);
+            const reader = new FileReader();
+            reader.onload = (ev) => setImagePreview(ev.target?.result as string);
+            reader.readAsDataURL(file);
+            toast.success("Afbeelding geplakt");
+          }
+          break;
+        }
+      }
+    };
+
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, []);
+
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -716,7 +743,7 @@ export default function Ontdekken() {
               </Avatar>
               <div className="flex-1">
                 <Textarea
-                  placeholder="Deel iets met de community..."
+                  placeholder="Deel iets met de community... (Ctrl+V om afbeelding te plakken)"
                   value={newContent}
                   onChange={(e) => setNewContent(e.target.value)}
                   className="min-h-[80px] resize-none border-none shadow-none focus-visible:ring-0 p-0 text-base"

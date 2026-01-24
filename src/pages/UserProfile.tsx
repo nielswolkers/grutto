@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LinkifiedText } from "@/components/LinkifiedText";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { useVerifiedUsers } from "@/hooks/useVerifiedStatus";
 import { ChevronLeft, User, Calendar, UserPlus, Check, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { nl } from "date-fns/locale";
@@ -42,6 +44,7 @@ export default function UserProfile() {
   const [publications, setPublications] = useState<Publication[]>([]);
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
+  const { verifiedUserIds } = useVerifiedUsers();
 
   useEffect(() => {
     if (username) {
@@ -207,7 +210,7 @@ export default function UserProfile() {
       <div className="absolute left-8" style={{ top: 'calc(12rem - 3.5rem)', zIndex: 10 }}>
         <Avatar className="w-28 h-28 border-4 border-background shadow-xl ring-4 ring-background">
           {profile.avatar_url ? (
-            <AvatarImage src={profile.avatar_url} alt={displayName} />
+            <AvatarImage src={profile.avatar_url} alt={displayName} className="object-cover" />
           ) : null}
           <AvatarFallback className="text-3xl bg-primary/10 text-primary">
             {getInitials(displayName)}
@@ -219,7 +222,10 @@ export default function UserProfile() {
       <div className="px-2">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold">{displayName}</h1>
+            <h1 className="text-2xl font-bold inline-flex items-center">
+              {displayName}
+              {verifiedUserIds.includes(profile.user_id) && <VerifiedBadge />}
+            </h1>
             <p className="text-muted-foreground">@{profile.username}</p>
           </div>
           
