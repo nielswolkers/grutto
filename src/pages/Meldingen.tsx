@@ -497,7 +497,7 @@ const Meldingen = () => {
                   onClick={() => respondToGroupInvitation(invitation, true)}
                 >
                   <Check className="w-4 h-4 mr-2" />
-                  Accepteren
+                  Bevestig
                 </Button>
                 <Button 
                   size="sm" 
@@ -506,7 +506,7 @@ const Meldingen = () => {
                   onClick={() => respondToGroupInvitation(invitation, false)}
                 >
                   <X className="w-4 h-4 mr-2" />
-                  Afwijzen
+                  Weiger
                 </Button>
               </div>
             </div>

@@ -246,11 +246,16 @@ const Agenda = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingBackground, setLoadingBackground] = useState(false); // For background refresh
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('maand');
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>('events');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentEventId, setCurrentEventId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Cache key for localStorage
+  const cacheKey = useMemo(() => user ? `calendar-events-${user.id}` : null, [user]);
+  const icsCacheKey = useMemo(() => user ? `calendar-ics-${user.id}` : null, [user]);
 
   // Selected event for viewing/editing
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
@@ -592,9 +597,46 @@ const Agenda = () => {
     }
   };
 
-  const loadEvents = async () => {
+  const loadEvents = useCallback(async (forceRefresh = false) => {
     if (!user) return;
+    
+    // Try to load from cache first for instant display
+    if (!forceRefresh && cacheKey) {
+      try {
+        const cachedData = localStorage.getItem(cacheKey);
+        if (cachedData) {
+          const { events: cachedEvents, timestamp } = JSON.parse(cachedData);
+          const cacheAge = Date.now() - timestamp;
+          
+          // Use cache if less than 2 minutes old
+          if (cacheAge < 2 * 60 * 1000 && cachedEvents.length > 0) {
+            const hydratedEvents = cachedEvents.map((e: any) => ({
+              ...e,
+              start: new Date(e.start),
+              end: new Date(e.end),
+            }));
+            setEvents(hydratedEvents);
+            setLoading(false);
+            
+            // Refresh in background if cache is older than 30 seconds
+            if (cacheAge > 30 * 1000) {
+              setLoadingBackground(true);
+              loadEventsFromServer();
+            }
+            return;
+          }
+        }
+      } catch (e) {
+        console.error('Cache read error:', e);
+      }
+    }
+    
     setLoading(true);
+    await loadEventsFromServer();
+  }, [user, cacheKey]);
+
+  const loadEventsFromServer = async () => {
+    if (!user) return;
 
     try {
       // Load all data in parallel for faster loading
@@ -652,9 +694,12 @@ const Agenda = () => {
         };
       });
 
-      // Fetch ICS events in parallel
+      // Fetch ICS events in parallel with timeout
       const icsPromises = (connectionsResult.data || []).map(async (connection: CalendarConnection) => {
         try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+          
           const response = await fetch(
             `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fetch-ics`,
             {
@@ -664,8 +709,12 @@ const Agenda = () => {
                 "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
               },
               body: JSON.stringify({ url: connection.ics_url }),
+              signal: controller.signal,
             }
           );
+          
+          clearTimeout(timeoutId);
+          
           if (response.ok) {
             const { content } = await response.json();
             return parseICS(content, connection.provider as 'zermelo' | 'outlook');
@@ -686,6 +735,9 @@ const Agenda = () => {
           const timeMin = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1).toISOString();
           const timeMax = new Date(currentDate.getFullYear(), currentDate.getMonth() + 2, 0).toISOString();
           
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
+          
           const response = await fetch(
             `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-events`,
             {
@@ -700,8 +752,11 @@ const Agenda = () => {
                 time_min: timeMin,
                 time_max: timeMax,
               }),
+              signal: controller.signal,
             }
           );
+
+          clearTimeout(timeoutId);
 
           if (response.ok) {
             const data = await response.json();
@@ -733,10 +788,28 @@ const Agenda = () => {
       const deduplicatedEvents = deduplicateEvents(allEvents);
 
       setEvents(deduplicatedEvents);
+      
+      // Cache the events
+      if (cacheKey) {
+        try {
+          const cacheData = {
+            events: deduplicatedEvents.map(e => ({
+              ...e,
+              start: e.start.toISOString(),
+              end: e.end.toISOString(),
+            })),
+            timestamp: Date.now(),
+          };
+          localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+        } catch (e) {
+          console.error('Cache write error:', e);
+        }
+      }
     } catch (error) {
       console.error('Failed to load events:', error);
     } finally {
       setLoading(false);
+      setLoadingBackground(false);
     }
   };
 
