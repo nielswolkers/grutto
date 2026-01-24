@@ -190,7 +190,9 @@ export default function Studie() {
 
   // Study timer state
   const [isStudying, setIsStudying] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [studyStartTime, setStudyStartTime] = useState<Date | null>(null);
+  const [pausedElapsedTime, setPausedElapsedTime] = useState(0);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [activeSessions, setActiveSessions] = useState<Map<string, StudySession>>(new Map());
@@ -255,7 +257,9 @@ export default function Studie() {
     let interval: NodeJS.Timeout;
     if (isStudying && studyStartTime) {
       interval = setInterval(() => {
-        setElapsedTime(Math.floor((Date.now() - studyStartTime.getTime()) / 1000));
+        const elapsed = Math.floor((Date.now() - studyStartTime.getTime()) / 1000);
+        // Ensure elapsed time is never negative
+        setElapsedTime(Math.max(0, elapsed));
       }, 1000);
     }
     return () => clearInterval(interval);
@@ -359,6 +363,22 @@ export default function Studie() {
     }
   };
 
+  const pauseStudySession = () => {
+    if (!isStudying || isPaused) return;
+    setPausedElapsedTime(elapsedTime);
+    setIsPaused(true);
+    toast.success("Studiesessie gepauzeerd");
+  };
+
+  const resumeStudySession = () => {
+    if (!isPaused) return;
+    // Set new start time accounting for already elapsed time
+    const newStartTime = new Date(Date.now() - pausedElapsedTime * 1000);
+    setStudyStartTime(newStartTime);
+    setIsPaused(false);
+    toast.success("Studiesessie hervat");
+  };
+
   const stopStudySession = async () => {
     if (!user || !currentSessionId) return;
 
@@ -375,9 +395,11 @@ export default function Studie() {
         .eq("id", currentSessionId);
 
       setIsStudying(false);
+      setIsPaused(false);
       setStudyStartTime(null);
       setCurrentSessionId(null);
       setElapsedTime(0);
+      setPausedElapsedTime(0);
       toast.success(`Studiesessie beëindigd (${formatTime(elapsedTime)})`);
     } catch (error) {
       console.error("Failed to stop session:", error);
@@ -386,9 +408,11 @@ export default function Studie() {
   };
 
   const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
+    // Ensure seconds is never negative
+    const safeSeconds = Math.max(0, seconds);
+    const hours = Math.floor(safeSeconds / 3600);
+    const mins = Math.floor((safeSeconds % 3600) / 60);
+    const secs = safeSeconds % 60;
     
     if (hours > 0) {
       return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
@@ -397,8 +421,9 @@ export default function Studie() {
   };
 
   const formatMinutes = (minutes: number) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
+    const safeMinutes = Math.max(0, minutes);
+    const hours = Math.floor(safeMinutes / 60);
+    const mins = safeMinutes % 60;
     if (hours > 0) {
       return `${hours}u ${mins}m`;
     }
@@ -556,31 +581,35 @@ export default function Studie() {
 
     setIsInviting(true);
     try {
+      // Direct add - no verification needed, status is 'accepted'
       const { error: memberError } = await supabase
         .from("group_members")
         .insert({
           group_id: selectedGroup.id,
           user_id: profile.user_id,
           invited_by: user.id,
-          status: "pending",
+          status: "accepted",
+          request_type: "invite",
         });
 
       if (memberError) throw memberError;
 
+      // Notify the user that they've been added
       await supabase.from("notifications").insert({
         recipient_id: profile.user_id,
         sender_id: user.id,
-        type: "group_invite",
-        message: `Je bent uitgenodigd voor de studiegroep "${selectedGroup.name}"`,
+        type: "group_added",
+        message: `Je bent toegevoegd aan de studiegroep "${selectedGroup.name}"`,
       });
 
-      toast.success(`${profile.display_name || profile.full_name} uitgenodigd`);
+      toast.success(`${profile.display_name || profile.full_name} toegevoegd`);
       setInviteSearchQuery("");
       setInviteSearchResults([]);
+      setInviteDialogOpen(false);
       loadGroups();
     } catch (error) {
       console.error("Invite error:", error);
-      toast.error("Kon gebruiker niet uitnodigen");
+      toast.error("Kon gebruiker niet toevoegen");
     } finally {
       setIsInviting(false);
     }
@@ -653,11 +682,13 @@ export default function Studie() {
       }
 
       if (selectedUsers.length > 0) {
+        // Direct add - no verification needed, status is 'accepted'
         const membersToInsert = selectedUsers.map(u => ({
           group_id: group.id,
           user_id: u.user_id,
           invited_by: user.id,
-          status: "pending",
+          status: "accepted",
+          request_type: "invite",
         }));
 
         const { error: membersError } = await supabase
@@ -668,11 +699,12 @@ export default function Studie() {
           console.error("Members insertion error:", membersError);
         }
 
+        // Notify users they've been added
         const notifications = selectedUsers.map(u => ({
           recipient_id: u.user_id,
           sender_id: user.id,
-          type: "group_invite",
-          message: `Je bent uitgenodigd voor de studiegroep "${newGroupName.trim()}"`,
+          type: "group_added",
+          message: `Je bent toegevoegd aan de studiegroep "${newGroupName.trim()}"`,
         }));
 
         const { error: notifError } = await supabase.from("notifications").insert(notifications);
@@ -894,9 +926,9 @@ export default function Studie() {
           </Button>
         </div>
 
-        {/* Avatar positioned in front of banner */}
-        <div className="absolute left-8" style={{ top: 'calc(10rem - 2rem)', zIndex: 10 }}>
-          <div className="relative">
+        {/* Avatar positioned in front of banner - relative to parent, not absolute */}
+        <div className="relative -mt-12 ml-8 mb-4" style={{ zIndex: 10 }}>
+          <div className="relative inline-block">
             <Avatar className="w-20 h-20 border-4 border-background shadow-xl ring-4 ring-background">
               {selectedGroup.avatar_url ? (
                 <AvatarImage src={selectedGroup.avatar_url} />
@@ -930,7 +962,7 @@ export default function Studie() {
           </div>
         </div>
 
-        <div className="flex items-start justify-between mb-8 pl-28">
+        <div className="flex items-start justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-foreground">{selectedGroup.name}</h1>
             <p className="text-muted-foreground">
@@ -1063,32 +1095,62 @@ export default function Studie() {
                 <div>
                   <h2 className="text-2xl font-bold">Studietimer</h2>
                   <p className="text-muted-foreground">
-                    {isStudying ? 'Je bent aan het studeren' : 'Start een studiesessie'}
+                    {isStudying 
+                      ? isPaused 
+                        ? 'Gepauzeerd' 
+                        : 'Je bent aan het studeren' 
+                      : 'Start een studiesessie'}
                   </p>
                 </div>
               </div>
               
               <div className="flex items-center gap-6">
                 <div className="text-right">
-                  <p className="text-4xl font-mono font-bold tabular-nums">
+                  <p className={`text-4xl font-mono font-bold tabular-nums ${isPaused ? 'text-muted-foreground' : ''}`}>
                     {formatTime(elapsedTime)}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {isStudying ? 'Huidige sessie' : 'Verstreken tijd'}
+                    {isStudying 
+                      ? isPaused 
+                        ? 'Gepauzeerd' 
+                        : 'Huidige sessie' 
+                      : 'Verstreken tijd'}
                   </p>
                 </div>
                 
-                <Button
-                  size="lg"
-                  onClick={isStudying ? stopStudySession : startStudySession}
-                  className={`rounded-full w-14 h-14 p-0 ${isStudying ? 'bg-destructive hover:bg-destructive/90' : ''}`}
-                >
-                  {isStudying ? (
-                    <Pause className="w-6 h-6" />
-                  ) : (
+                {isStudying ? (
+                  <div className="flex items-center gap-2">
+                    {/* Pause/Resume button */}
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      onClick={isPaused ? resumeStudySession : pauseStudySession}
+                      className="rounded-full w-14 h-14 p-0"
+                    >
+                      {isPaused ? (
+                        <Play className="w-6 h-6 ml-1" />
+                      ) : (
+                        <Pause className="w-6 h-6" />
+                      )}
+                    </Button>
+                    {/* Finish button */}
+                    <Button
+                      size="lg"
+                      onClick={stopStudySession}
+                      className="rounded-full w-14 h-14 p-0 bg-destructive hover:bg-destructive/90"
+                    >
+                      <X className="w-6 h-6" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    size="lg"
+                    onClick={startStudySession}
+                    className="rounded-full w-14 h-14 p-0"
+                  >
                     <Play className="w-6 h-6 ml-1" />
-                  )}
-                </Button>
+                  </Button>
+                )}
               </div>
             </div>
           </CardContent>

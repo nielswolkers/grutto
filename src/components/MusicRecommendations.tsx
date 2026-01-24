@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Play } from 'lucide-react';
 import { getTopArtists, getUserPlaylists, getArtistTopTracks, playContext } from '@/api/spotifyApi';
 import { toast } from '@/hooks/use-toast';
-import { getStoredAccessToken } from '@/auth/spotifyAuth';
+import { getStoredAccessToken, refreshAccessToken } from '@/auth/spotifyAuth';
 import { Button } from './ui/button';
 
 interface RecommendationItem {
@@ -22,16 +22,45 @@ interface MusicRecommendationsProps {
 export function MusicRecommendations({ deviceId, onContextChange }: MusicRecommendationsProps) {
   const [items, setItems] = useState<RecommendationItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const accessToken = getStoredAccessToken();
-    if (!accessToken) return;
-
     const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+      
       try {
+        // Get token, try to refresh if expired
+        let accessToken = getStoredAccessToken();
+        
+        if (!accessToken) {
+          // Try to refresh the token
+          try {
+            accessToken = await refreshAccessToken();
+          } catch (refreshError) {
+            console.log('Could not refresh token:', refreshError);
+            setError('Niet ingelogd bij Spotify');
+            setLoading(false);
+            return;
+          }
+        }
+
+        if (!accessToken) {
+          setError('Geen Spotify token beschikbaar');
+          setLoading(false);
+          return;
+        }
+
+        // Fetch data in parallel
         const [topArtists, playlists] = await Promise.all([
-          getTopArtists(accessToken, 3),
-          getUserPlaylists(accessToken, 3),
+          getTopArtists(accessToken, 3).catch(err => {
+            console.error('Error fetching top artists:', err);
+            return [];
+          }),
+          getUserPlaylists(accessToken, 3).catch(err => {
+            console.error('Error fetching playlists:', err);
+            return [];
+          }),
         ]);
 
         const combined: RecommendationItem[] = [
@@ -46,16 +75,21 @@ export function MusicRecommendations({ deviceId, onContextChange }: MusicRecomme
           ...playlists.map((playlist: any) => ({
             id: playlist.id,
             name: playlist.name,
-            image: playlist.images[0]?.url || '',
+            image: playlist.images?.[0]?.url || '',
             subtitle: 'Playlist',
             type: 'playlist' as const,
             uri: playlist.uri,
           }))
         ];
 
-        setItems(combined.slice(0, 6));
+        if (combined.length === 0) {
+          setError('Geen aanbevelingen gevonden. Luister eerst naar wat muziek op Spotify!');
+        } else {
+          setItems(combined.slice(0, 6));
+        }
       } catch (error) {
         console.error('Error fetching recommendations:', error);
+        setError('Kon aanbevelingen niet laden');
       } finally {
         setLoading(false);
       }
@@ -65,11 +99,24 @@ export function MusicRecommendations({ deviceId, onContextChange }: MusicRecomme
   }, []);
 
   const handleItemClick = async (item: RecommendationItem) => {
-    const accessToken = getStoredAccessToken();
-    if (!accessToken || !deviceId) {
+    let accessToken = getStoredAccessToken();
+    
+    if (!accessToken) {
+      try {
+        accessToken = await refreshAccessToken();
+      } catch {
+        toast({
+          title: 'Niet ingelogd',
+          description: 'Log opnieuw in bij Spotify',
+        });
+        return;
+      }
+    }
+
+    if (!deviceId) {
       toast({
-        title: 'Player Not Ready',
-        description: 'Please wait for the player to initialize',
+        title: 'Speler niet gereed',
+        description: 'Wacht tot de speler is geïnitialiseerd',
       });
       return;
     }
@@ -89,8 +136,8 @@ export function MusicRecommendations({ deviceId, onContextChange }: MusicRecomme
     } catch (error) {
       console.error('Error playing:', error);
       toast({
-        title: 'Playback Error',
-        description: 'Failed to play. Make sure Spotify is active.',
+        title: 'Afspelen mislukt',
+        description: 'Zorg dat Spotify actief is.',
         variant: 'destructive',
       });
     }
@@ -113,6 +160,30 @@ export function MusicRecommendations({ deviceId, onContextChange }: MusicRecomme
               <div className="h-3 bg-muted rounded w-2/3"></div>
             </div>
           ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error || items.length === 0) {
+    return (
+      <div className="bg-card rounded-2xl p-6 border border-border">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-xl font-semibold text-foreground">Aanbevolen studiemuziek</h3>
+            <p className="text-sm text-muted-foreground mt-1">Jouw favoriete nummers</p>
+          </div>
+        </div>
+        <div className="text-center py-8">
+          <p className="text-muted-foreground mb-4">
+            {error || 'Geen aanbevelingen beschikbaar'}
+          </p>
+          <Button 
+            variant="outline" 
+            onClick={() => window.open('https://open.spotify.com', '_blank')}
+          >
+            Open Spotify
+          </Button>
         </div>
       </div>
     );

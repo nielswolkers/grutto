@@ -38,13 +38,16 @@ export default function UserProfile() {
   const [profile, setProfile] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
   const [publications, setPublications] = useState<Publication[]>([]);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
 
   useEffect(() => {
     if (username) {
       loadProfile();
     }
-  }, [username]);
+  }, [username, user]);
 
   const loadProfile = async () => {
     try {
@@ -57,8 +60,8 @@ export default function UserProfile() {
       if (error) throw error;
       setProfile(data);
 
-      // Load user's publications
       if (data) {
+        // Load user's publications
         const { data: pubs } = await supabase
           .from("publications")
           .select("*")
@@ -66,6 +69,32 @@ export default function UserProfile() {
           .order("created_at", { ascending: false });
         
         setPublications(pubs || []);
+
+        // Load follow counts
+        const { count: followers } = await supabase
+          .from("follows")
+          .select("*", { count: 'exact', head: true })
+          .eq("following_id", data.user_id);
+
+        const { count: following } = await supabase
+          .from("follows")
+          .select("*", { count: 'exact', head: true })
+          .eq("follower_id", data.user_id);
+
+        setFollowerCount(followers || 0);
+        setFollowingCount(following || 0);
+
+        // Check if current user is following this profile
+        if (user && user.id !== data.user_id) {
+          const { data: followData } = await supabase
+            .from("follows")
+            .select("id")
+            .eq("follower_id", user.id)
+            .eq("following_id", data.user_id)
+            .maybeSingle();
+          
+          setIsFollowing(!!followData);
+        }
       }
     } catch (error) {
       console.error("Failed to load profile:", error);
@@ -78,9 +107,49 @@ export default function UserProfile() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  const handleFollow = () => {
-    setIsFollowing(!isFollowing);
-    toast.success(isFollowing ? "Niet meer volgend" : "Je volgt nu deze gebruiker");
+  const handleFollow = async () => {
+    if (!user || !profile) return;
+
+    setFollowLoading(true);
+    try {
+      if (isFollowing) {
+        // Unfollow
+        await supabase
+          .from("follows")
+          .delete()
+          .eq("follower_id", user.id)
+          .eq("following_id", profile.user_id);
+
+        setIsFollowing(false);
+        setFollowerCount(prev => prev - 1);
+        toast.success("Niet meer volgend");
+      } else {
+        // Follow
+        await supabase
+          .from("follows")
+          .insert({
+            follower_id: user.id,
+            following_id: profile.user_id,
+          });
+
+        setIsFollowing(true);
+        setFollowerCount(prev => prev + 1);
+        toast.success("Je volgt nu deze gebruiker");
+
+        // Send notification
+        await supabase.from("notifications").insert({
+          recipient_id: profile.user_id,
+          sender_id: user.id,
+          type: "new_follower",
+          message: "volgt je nu",
+        });
+      }
+    } catch (error) {
+      console.error("Follow error:", error);
+      toast.error("Er ging iets mis");
+    } finally {
+      setFollowLoading(false);
+    }
   };
 
   const formatDate = (dateStr: string) => {
@@ -166,9 +235,12 @@ export default function UserProfile() {
             <Button
               variant={isFollowing ? "secondary" : "default"}
               onClick={handleFollow}
+              disabled={followLoading}
               className="rounded-full gap-2"
             >
-              {isFollowing ? (
+              {followLoading ? (
+                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              ) : isFollowing ? (
                 <>
                   <Check className="w-4 h-4" />
                   Volgend
@@ -181,6 +253,18 @@ export default function UserProfile() {
               )}
             </Button>
           )}
+        </div>
+
+        {/* Follow stats */}
+        <div className="flex items-center gap-4 mb-4">
+          <div className="flex items-center gap-1">
+            <span className="font-semibold">{followerCount}</span>
+            <span className="text-muted-foreground text-sm">volgers</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="font-semibold">{followingCount}</span>
+            <span className="text-muted-foreground text-sm">volgend</span>
+          </div>
         </div>
 
         {profile.bio && (
