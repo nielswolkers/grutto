@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LinkifiedText } from "@/components/LinkifiedText";
-import { ChevronLeft, User, Calendar, MessageCircle, UserPlus, Check, FileText } from "lucide-react";
+import { ChevronLeft, User, Calendar, UserPlus, Check, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { nl } from "date-fns/locale";
 import { toast } from "sonner";
@@ -76,10 +76,6 @@ export default function UserProfile() {
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  };
-
-  const handleMessage = () => {
-    toast.info("Berichtenfunctie komt binnenkort!");
   };
 
   const handleFollow = () => {
@@ -167,33 +163,23 @@ export default function UserProfile() {
               Bewerken
             </Button>
           ) : (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={handleMessage}
-                className="rounded-full gap-2"
-              >
-                <MessageCircle className="w-4 h-4" />
-                Bericht
-              </Button>
-              <Button
-                variant={isFollowing ? "secondary" : "default"}
-                onClick={handleFollow}
-                className="rounded-full gap-2"
-              >
-                {isFollowing ? (
-                  <>
-                    <Check className="w-4 h-4" />
-                    Volgend
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="w-4 h-4" />
-                    Volgen
-                  </>
-                )}
-              </Button>
-            </div>
+            <Button
+              variant={isFollowing ? "secondary" : "default"}
+              onClick={handleFollow}
+              className="rounded-full gap-2"
+            >
+              {isFollowing ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  Volgend
+                </>
+              ) : (
+                <>
+                  <UserPlus className="w-4 h-4" />
+                  Volgen
+                </>
+              )}
+            </Button>
           )}
         </div>
 

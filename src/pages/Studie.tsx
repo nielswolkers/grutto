@@ -22,6 +22,7 @@ interface StudyGroup {
   name: string;
   owner_id: string;
   avatar_url: string | null;
+  banner_url: string | null;
   created_at: string;
   members?: GroupMember[];
 }
@@ -177,7 +178,9 @@ export default function Studie() {
   const [isSavingGroup, setIsSavingGroup] = useState(false);
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
   const editAvatarInputRef = useRef<HTMLInputElement>(null);
+  const editBannerInputRef = useRef<HTMLInputElement>(null);
   const [uploadingGroupAvatar, setUploadingGroupAvatar] = useState(false);
+  const [uploadingGroupBanner, setUploadingGroupBanner] = useState(false);
 
   // Invite dialog
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
@@ -736,6 +739,48 @@ export default function Studie() {
     }
   };
 
+  const handleEditGroupBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedGroup) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error("Alleen afbeeldingen zijn toegestaan");
+      return;
+    }
+
+    setUploadingGroupBanner(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${user!.id}/group-banners/${selectedGroup.id}-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('user-files')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('user-files')
+        .getPublicUrl(filePath);
+
+      const { error: updateError } = await supabase
+        .from('study_groups')
+        .update({ banner_url: urlData.publicUrl })
+        .eq('id', selectedGroup.id);
+
+      if (updateError) throw updateError;
+
+      toast.success("Groepsbanner bijgewerkt");
+      loadGroups();
+      setSelectedGroup(prev => prev ? { ...prev, banner_url: urlData.publicUrl } : null);
+    } catch (error) {
+      console.error("Banner upload error:", error);
+      toast.error("Kon groepsbanner niet uploaden");
+    } finally {
+      setUploadingGroupBanner(false);
+    }
+  };
+
   const saveGroupEdit = async () => {
     if (!selectedGroup || !editGroupName.trim()) return;
 
@@ -807,54 +852,90 @@ export default function Studie() {
 
     return (
       <div className="w-full">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSelectedGroup(null)}
-              className="rounded-full"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </Button>
-            <div className="relative">
-              <Avatar className="w-12 h-12">
-                {selectedGroup.avatar_url ? (
-                  <AvatarImage src={selectedGroup.avatar_url} />
-                ) : null}
-                <AvatarFallback className="bg-primary/10 text-primary">
-                  <Users className="w-6 h-6" />
-                </AvatarFallback>
-              </Avatar>
-              {isOwner && (
-                <>
-                  <button
-                    onClick={() => editAvatarInputRef.current?.click()}
-                    disabled={uploadingGroupAvatar}
-                    className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors"
-                  >
-                    {uploadingGroupAvatar ? (
-                      <div className="w-3 h-3 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                    ) : (
-                      <Camera className="w-3 h-3" />
-                    )}
-                  </button>
-                  <input
-                    ref={editAvatarInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleEditGroupAvatarUpload}
-                    className="hidden"
-                  />
-                </>
-              )}
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">{selectedGroup.name}</h1>
-              <p className="text-muted-foreground">
-                {acceptedMembers.length + 1} leden
-              </p>
-            </div>
+        {/* Group Banner */}
+        <div className="relative h-40 rounded-2xl overflow-hidden mb-16 bg-gradient-to-br from-primary/20 to-primary/5">
+          {selectedGroup.banner_url && (
+            <img
+              src={selectedGroup.banner_url}
+              alt="Group banner"
+              className="w-full h-full object-cover"
+            />
+          )}
+          {isOwner && (
+            <>
+              <button
+                onClick={() => editBannerInputRef.current?.click()}
+                disabled={uploadingGroupBanner}
+                className="absolute bottom-3 right-3 px-3 py-1.5 rounded-full bg-background/80 backdrop-blur-sm text-foreground text-sm flex items-center gap-2 hover:bg-background/90 transition-colors"
+              >
+                {uploadingGroupBanner ? (
+                  <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                ) : (
+                  <Camera className="w-4 h-4" />
+                )}
+                <span>Banner wijzigen</span>
+              </button>
+              <input
+                ref={editBannerInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleEditGroupBannerUpload}
+                className="hidden"
+              />
+            </>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSelectedGroup(null)}
+            className="absolute top-3 left-3 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background/90"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+        </div>
+
+        {/* Avatar positioned in front of banner */}
+        <div className="absolute left-8" style={{ top: 'calc(10rem - 2rem)', zIndex: 10 }}>
+          <div className="relative">
+            <Avatar className="w-20 h-20 border-4 border-background shadow-xl ring-4 ring-background">
+              {selectedGroup.avatar_url ? (
+                <AvatarImage src={selectedGroup.avatar_url} />
+              ) : null}
+              <AvatarFallback className="bg-primary/10 text-primary">
+                <Users className="w-8 h-8" />
+              </AvatarFallback>
+            </Avatar>
+            {isOwner && (
+              <>
+                <button
+                  onClick={() => editAvatarInputRef.current?.click()}
+                  disabled={uploadingGroupAvatar}
+                  className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors"
+                >
+                  {uploadingGroupAvatar ? (
+                    <div className="w-3.5 h-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                  ) : (
+                    <Camera className="w-3.5 h-3.5" />
+                  )}
+                </button>
+                <input
+                  ref={editAvatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleEditGroupAvatarUpload}
+                  className="hidden"
+                />
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-start justify-between mb-8 pl-28">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">{selectedGroup.name}</h1>
+            <p className="text-muted-foreground">
+              {acceptedMembers.length + 1} leden
+            </p>
           </div>
 
           {isOwner && (
