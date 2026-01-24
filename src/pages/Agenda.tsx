@@ -135,37 +135,50 @@ const parseICSDate = (dateStr: string): Date => {
 
 // Helper to normalize event titles for comparison (remove room numbers, class codes, etc.)
 const normalizeTitle = (title: string): string => {
-  // Remove leading numbers and room codes (e.g. "311 netl 5v.netl5" -> "netl 5v.netl5")
-  // Also remove # prefix
-  return title.replace(/^#?\s*\d+\s*/, '').toLowerCase().trim();
+  // Remove leading numbers, room codes (e.g. "311", "k02"), and # prefix
+  return title.replace(/^#?\s*/, '').replace(/^[a-z]?\d+\s*/i, '').toLowerCase().trim();
+};
+
+// Extract core activity name from title (e.g., "k02 lo 5v.lo2" -> "lo 5v")
+const extractCoreActivity = (title: string): string => {
+  let core = title.toLowerCase()
+    .replace(/^#?\s*/, '') // Remove # prefix
+    .replace(/^[a-z]?\d+\s*/i, '') // Remove room codes like "k02", "311"
+    .replace(/\.\w+\d*$/, '') // Remove trailing class codes like ".lo2", ".netl5"
+    .trim();
+  return core;
 };
 
 // Check if two events are similar enough to merge
 const areEventsSimilar = (a: CalendarEvent, b: CalendarEvent): boolean => {
-  // Must have overlapping or very close time slots (within 5 minutes)
-  const timeDiff = Math.abs(a.start.getTime() - b.start.getTime());
-  if (timeDiff > 5 * 60 * 1000) return false;
+  // Must be within exact same time period (start and end times match closely)
+  const startDiff = Math.abs(a.start.getTime() - b.start.getTime());
+  const endDiff = Math.abs(a.end.getTime() - b.end.getTime());
+  
+  // Allow 5 minutes tolerance
+  if (startDiff > 5 * 60 * 1000 || endDiff > 5 * 60 * 1000) return false;
 
   // Both should be ICS events (zermelo or outlook) for merging
   if (!['zermelo', 'outlook'].includes(a.source) || !['zermelo', 'outlook'].includes(b.source)) return false;
   if (a.source === b.source) return false; // Only merge different sources
 
-  // Normalize titles and check for similarity
-  const titleA = normalizeTitle(a.title);
-  const titleB = normalizeTitle(b.title);
+  // Extract core activity names
+  const coreA = extractCoreActivity(a.title);
+  const coreB = extractCoreActivity(b.title);
   
-  // Check if one contains the other or they share significant words
-  if (titleA.includes(titleB) || titleB.includes(titleA)) return true;
+  // Check if cores are similar
+  if (coreA.includes(coreB) || coreB.includes(coreA)) return true;
   
-  // Check for common words (at least 2 significant words in common)
-  const wordsA = titleA.split(/[\s.]+/).filter(w => w.length > 2);
-  const wordsB = titleB.split(/[\s.]+/).filter(w => w.length > 2);
-  const commonWords = wordsA.filter(w => wordsB.includes(w));
+  // Check for significant word overlap
+  const wordsA = coreA.split(/[\s.]+/).filter(w => w.length > 1);
+  const wordsB = coreB.split(/[\s.]+/).filter(w => w.length > 1);
+  const commonWords = wordsA.filter(w => wordsB.some(wb => wb.includes(w) || w.includes(wb)));
   
-  return commonWords.length >= 2;
+  return commonWords.length >= 1;
 };
 
 // Deduplicate events with same time slots from different sources
+// Prioritize Zermelo naming, fall back to Outlook
 const deduplicateEvents = (events: CalendarEvent[]): CalendarEvent[] => {
   const result: CalendarEvent[] = [];
   const merged = new Set<string>();
@@ -186,13 +199,14 @@ const deduplicateEvents = (events: CalendarEvent[]): CalendarEvent[] => {
     }
 
     if (similarEvents.length > 1) {
-      // Create merged event
-      const sources = [...new Set(similarEvents.map(e => e.source))];
-      const sourceLabels = sources.map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' + ');
+      // Prefer Zermelo title, fall back to Outlook
+      const zermeloEvent = similarEvents.find(e => e.source === 'zermelo');
+      const outlookEvent = similarEvents.find(e => e.source === 'outlook');
+      const preferredEvent = zermeloEvent || outlookEvent || current;
+      
       result.push({
-        ...current,
-        title: `${current.title} (${sourceLabels})`,
-        mergedSources: sources,
+        ...preferredEvent,
+        mergedSources: [...new Set(similarEvents.map(e => e.source))],
       });
     } else {
       result.push(current);

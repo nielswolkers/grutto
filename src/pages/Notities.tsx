@@ -70,10 +70,8 @@ export default function Notities() {
   const contentRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (!user) {
-      navigate("/auth");
-      return;
-    }
+    if (!user) return;
+    
     loadNotes();
 
     const channel = supabase

@@ -422,7 +422,11 @@ const Meldingen = () => {
                   <div className="flex items-center gap-3">
                     <Calendar className="w-5 h-5 text-muted-foreground shrink-0" />
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-sm">{invitation.event.title}</p>
+                      <p className="font-medium text-sm">
+                        {invitation.event.title === 'Nieuwe Afspraak' || !invitation.event.title.trim()
+                          ? `Nieuwe Afspraak (${invitation.inviter?.display_name || invitation.inviter?.full_name})`
+                          : invitation.event.title}
+                      </p>
                       <p className="text-xs text-muted-foreground">
                         {format(parseISO(invitation.event.start_time), "d MMMM HH:mm", { locale: nl })}
                         {" - "}
@@ -466,6 +470,14 @@ const Meldingen = () => {
                   </span>
                   {' '}heeft u uitgenodigd voor de studiegroep "{invitation.group?.name}".
                 </p>
+                <Button 
+                  size="sm" 
+                  variant="secondary" 
+                  className="rounded-full px-4 h-8 text-xs bg-muted hover:bg-muted/80 shrink-0"
+                  onClick={() => respondToGroupInvitation(invitation, false)}
+                >
+                  Wis
+                </Button>
               </div>
 
               <div className="bg-secondary/50 rounded-xl p-4 mb-3">
