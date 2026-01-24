@@ -9,6 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { LinkifiedText } from "@/components/LinkifiedText";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { useVerifiedUsers, useVerifiedGroups } from "@/hooks/useVerifiedStatus";
 import { 
   Search, 
   Image as ImageIcon, 
@@ -53,6 +55,7 @@ interface Publication {
   file_name: string | null;
   created_at: string;
   profile?: {
+    user_id: string;
     username: string;
     full_name: string;
     display_name: string | null;
@@ -67,6 +70,7 @@ interface Comment {
   content: string;
   created_at: string;
   profile?: {
+    user_id: string;
     username: string;
     full_name: string;
     display_name: string | null;
@@ -97,6 +101,8 @@ type SearchResultType =
 export default function Ontdekken() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { verifiedUserIds } = useVerifiedUsers();
+  const { verifiedGroupIds } = useVerifiedGroups();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResultType[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -127,6 +133,9 @@ export default function Ontdekken() {
   // Group membership check
   const [myGroupIds, setMyGroupIds] = useState<Set<string>>(new Set());
   const [requestingJoin, setRequestingJoin] = useState<string | null>(null);
+
+  const isUserVerified = (userId: string) => verifiedUserIds.includes(userId);
+  const isGroupVerified = (groupId: string) => verifiedGroupIds.includes(groupId);
 
   useEffect(() => {
     loadPublications();
@@ -636,11 +645,14 @@ export default function Ontdekken() {
                             className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors"
                           >
                             <Avatar className="w-10 h-10">
-                              {p.avatar_url && <AvatarImage src={p.avatar_url} />}
+                              {p.avatar_url && <AvatarImage src={p.avatar_url} className="object-cover" />}
                               <AvatarFallback>{getInitials(p.display_name || p.full_name)}</AvatarFallback>
                             </Avatar>
                             <div className="text-left flex-1">
-                              <p className="font-medium">{p.display_name || p.full_name}</p>
+                              <p className="font-medium flex items-center">
+                                {p.display_name || p.full_name}
+                                {isUserVerified(p.user_id) && <VerifiedBadge />}
+                              </p>
                               <p className="text-sm text-muted-foreground">@{p.username}</p>
                             </div>
                             <User className="w-4 h-4 text-muted-foreground" />
@@ -659,11 +671,14 @@ export default function Ontdekken() {
                             className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors"
                           >
                             <Avatar className="w-10 h-10">
-                              {g.avatar_url && <AvatarImage src={g.avatar_url} />}
+                              {g.avatar_url && <AvatarImage src={g.avatar_url} className="object-cover" />}
                               <AvatarFallback><Users className="w-5 h-5" /></AvatarFallback>
                             </Avatar>
                             <div className="text-left flex-1">
-                              <p className="font-medium">{g.name}</p>
+                              <p className="font-medium flex items-center">
+                                {g.name}
+                                {isGroupVerified(g.id) && <VerifiedBadge />}
+                              </p>
                               <p className="text-sm text-muted-foreground">Studiegroep</p>
                             </div>
                             {isMember || isOwner ? (
@@ -736,7 +751,7 @@ export default function Ontdekken() {
           <CardContent className="p-4">
             <div className="flex gap-3">
               <Avatar className="w-12 h-12">
-                {myProfile?.avatar_url && <AvatarImage src={myProfile.avatar_url} />}
+                {myProfile?.avatar_url && <AvatarImage src={myProfile.avatar_url} className="object-cover" />}
                 <AvatarFallback>
                   {myProfile ? getInitials(myProfile.display_name || myProfile.full_name) : "?"}
                 </AvatarFallback>
@@ -859,13 +874,18 @@ export default function Ontdekken() {
                     className="flex items-center gap-3 hover:opacity-80 transition-opacity"
                   >
                     <Avatar className="w-12 h-12">
-                      {pub.profile?.avatar_url && <AvatarImage src={pub.profile.avatar_url} />}
+                      {pub.profile?.avatar_url && <AvatarImage src={pub.profile.avatar_url} className="object-cover" />}
                       <AvatarFallback>
                         {getInitials(pub.profile?.display_name || pub.profile?.full_name || "?")}
                       </AvatarFallback>
                     </Avatar>
                     <div className="text-left">
-                      <p className="font-semibold">{pub.profile?.display_name || pub.profile?.full_name}</p>
+                      <p className="font-semibold flex items-center">
+                        {pub.profile?.display_name || pub.profile?.full_name}
+                        {pub.profile?.user_id && isUserVerified(pub.profile.user_id) && (
+                          <VerifiedBadge />
+                        )}
+                      </p>
                       <p className="text-sm text-muted-foreground">
                         @{pub.profile?.username} • {formatDate(pub.created_at)}
                       </p>
@@ -942,7 +962,7 @@ export default function Ontdekken() {
                       {user && (
                         <div className="flex items-start gap-2">
                           <Avatar className="w-8 h-8">
-                            {myProfile?.avatar_url && <AvatarImage src={myProfile.avatar_url} />}
+                            {myProfile?.avatar_url && <AvatarImage src={myProfile.avatar_url} className="object-cover" />}
                             <AvatarFallback className="text-xs">
                               {myProfile ? getInitials(myProfile.display_name || myProfile.full_name) : "?"}
                             </AvatarFallback>
@@ -983,17 +1003,20 @@ export default function Ontdekken() {
                             className="w-8 h-8 cursor-pointer"
                             onClick={() => comment.profile?.username && navigate(`/profiel/${comment.profile.username}`)}
                           >
-                            {comment.profile?.avatar_url && <AvatarImage src={comment.profile.avatar_url} />}
+                            {comment.profile?.avatar_url && <AvatarImage src={comment.profile.avatar_url} className="object-cover" />}
                             <AvatarFallback className="text-xs">
                               {getInitials(comment.profile?.display_name || comment.profile?.full_name || "?")}
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1 bg-muted rounded-2xl px-3 py-2">
                             <p 
-                              className="text-sm font-medium cursor-pointer hover:underline"
+                              className="text-sm font-medium cursor-pointer hover:underline flex items-center"
                               onClick={() => comment.profile?.username && navigate(`/profiel/${comment.profile.username}`)}
                             >
                               {comment.profile?.display_name || comment.profile?.full_name}
+                              {comment.profile?.user_id && isUserVerified(comment.profile.user_id) && (
+                                <VerifiedBadge className="w-4 h-4" />
+                              )}
                             </p>
                             <p className="text-sm">{comment.content}</p>
                             <p className="text-xs text-muted-foreground mt-1">

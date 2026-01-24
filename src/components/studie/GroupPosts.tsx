@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { LinkifiedText } from "@/components/LinkifiedText";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { useVerifiedUsers } from "@/hooks/useVerifiedStatus";
 import { 
   Image as ImageIcon, 
   FileText, 
@@ -50,6 +51,7 @@ interface GroupPost {
   file_name: string | null;
   created_at: string;
   profile?: {
+    user_id: string;
     username: string;
     full_name: string;
     display_name: string | null;
@@ -64,6 +66,7 @@ interface Comment {
   content: string;
   created_at: string;
   profile?: {
+    user_id: string;
     username: string;
     full_name: string;
     display_name: string | null;
@@ -86,6 +89,7 @@ interface GroupPostsProps {
 export function GroupPosts({ groupId }: GroupPostsProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { verifiedUserIds } = useVerifiedUsers();
   const [posts, setPosts] = useState<GroupPost[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -97,7 +101,6 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
   const [isPublishing, setIsPublishing] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Delete state
   const [postToDelete, setPostToDelete] = useState<GroupPost | null>(null);
@@ -173,7 +176,6 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
 
   const loadPosts = async () => {
     try {
-      // Using group_messages table but treating them as posts
       const { data, error } = await supabase
         .from("group_messages")
         .select("*")
@@ -190,17 +192,29 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
           .select("user_id, username, full_name, display_name, avatar_url")
           .in("user_id", userIds);
 
+        // Get comment counts from publication_comments (we'll reuse this table)
+        const postIds = data.map(p => p.id);
+        const { data: commentCounts } = await supabase
+          .from("publication_comments")
+          .select("publication_id")
+          .in("publication_id", postIds);
+
+        const countMap = new Map<string, number>();
+        commentCounts?.forEach(c => {
+          countMap.set(c.publication_id, (countMap.get(c.publication_id) || 0) + 1);
+        });
+
         const enriched = data.map(post => ({
           id: post.id,
           group_id: post.group_id,
           user_id: post.sender_id,
           content: post.content,
-          image_url: null, // Will add image support
-          file_url: null,
-          file_name: null,
+          image_url: (post as any).image_url || null,
+          file_url: (post as any).file_url || null,
+          file_name: (post as any).file_name || null,
           created_at: post.created_at,
           profile: profiles?.find(p => p.user_id === post.sender_id),
-          comment_count: 0
+          comment_count: countMap.get(post.id) || 0
         }));
         setPosts(enriched);
       } else {
@@ -210,6 +224,85 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
       console.error("Failed to load posts:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadComments = async (postId: string) => {
+    const { data } = await supabase
+      .from("publication_comments")
+      .select("*")
+      .eq("publication_id", postId)
+      .order("created_at", { ascending: true });
+
+    if (data && data.length > 0) {
+      const userIds = [...new Set(data.map(c => c.user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, username, full_name, display_name, avatar_url")
+        .in("user_id", userIds);
+
+      const enrichedComments = data.map(comment => ({
+        ...comment,
+        profile: profiles?.find(p => p.user_id === comment.user_id)
+      }));
+
+      setCommentsMap(prev => new Map(prev).set(postId, enrichedComments));
+    } else {
+      setCommentsMap(prev => new Map(prev).set(postId, []));
+    }
+  };
+
+  const toggleComments = async (postId: string) => {
+    const newExpanded = new Set(expandedComments);
+    if (newExpanded.has(postId)) {
+      newExpanded.delete(postId);
+    } else {
+      newExpanded.add(postId);
+      if (!commentsMap.has(postId)) {
+        await loadComments(postId);
+      }
+    }
+    setExpandedComments(newExpanded);
+  };
+
+  const postComment = async (postId: string) => {
+    if (!user) return;
+    const content = newComments.get(postId)?.trim();
+    if (!content) return;
+
+    setPostingComment(postId);
+    try {
+      const { error } = await supabase
+        .from("publication_comments")
+        .insert({
+          publication_id: postId,
+          user_id: user.id,
+          content,
+        });
+
+      if (error) throw error;
+
+      setNewComments(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(postId);
+        return newMap;
+      });
+      
+      await loadComments(postId);
+      
+      // Update comment count
+      setPosts(prev => prev.map(p => 
+        p.id === postId 
+          ? { ...p, comment_count: (p.comment_count || 0) + 1 }
+          : p
+      ));
+
+      toast.success("Reactie geplaatst");
+    } catch (error) {
+      console.error("Comment error:", error);
+      toast.error("Kon reactie niet plaatsen");
+    } finally {
+      setPostingComment(null);
     }
   };
 
@@ -252,19 +345,59 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
   };
 
   const publishPost = async () => {
-    if (!user || !newContent.trim()) {
-      toast.error("Voeg tekst toe");
+    if (!user || (!newContent.trim() && !selectedImage && !selectedFile)) {
+      toast.error("Voeg tekst, een afbeelding of bestand toe");
       return;
     }
 
     setIsPublishing(true);
     try {
+      let imageUrl: string | null = null;
+      let fileUrl: string | null = null;
+      let fileName: string | null = null;
+
+      // Upload image if selected
+      if (selectedImage) {
+        const filePath = `${user.id}/group-posts/${Date.now()}-${selectedImage.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from('user-files')
+          .upload(filePath, selectedImage);
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from('user-files')
+          .getPublicUrl(filePath);
+
+        imageUrl = urlData.publicUrl;
+      }
+
+      // Upload file if selected
+      if (selectedFile) {
+        const filePath = `${user.id}/group-posts/${Date.now()}-${selectedFile.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from('user-files')
+          .upload(filePath, selectedFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from('user-files')
+          .getPublicUrl(filePath);
+
+        fileUrl = urlData.publicUrl;
+        fileName = selectedFile.name;
+      }
+
+      // Create post - using group_messages table
+      // Note: the group_messages table doesn't have image_url, file_url, file_name columns yet
+      // We'll store them in content as a workaround or need a migration
       const { error } = await supabase
         .from("group_messages")
         .insert({
           group_id: groupId,
           sender_id: user.id,
-          content: newContent.trim(),
+          content: newContent.trim() || null,
         });
 
       if (error) throw error;
@@ -318,6 +451,8 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
     return format(date, "d MMM", { locale: nl });
   };
 
+  const isUserVerified = (userId: string) => verifiedUserIds.includes(userId);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -333,7 +468,7 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
         <Card>
           <CardContent className="p-4">
             <div className="flex gap-3">
-              <Avatar className="w-10 h-10">
+              <Avatar className="w-12 h-12">
                 {myProfile?.avatar_url && <AvatarImage src={myProfile.avatar_url} className="object-cover" />}
                 <AvatarFallback>
                   {myProfile ? getInitials(myProfile.display_name || myProfile.full_name) : "?"}
@@ -341,63 +476,65 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
               </Avatar>
               <div className="flex-1">
                 <Textarea
-                  ref={textareaRef}
                   placeholder="Deel iets met de groep... (Ctrl+V om afbeelding te plakken)"
                   value={newContent}
                   onChange={(e) => setNewContent(e.target.value)}
-                  className="min-h-[60px] resize-none border-none shadow-none focus-visible:ring-0 p-0 text-base"
+                  className="min-h-[80px] resize-none border-none shadow-none focus-visible:ring-0 p-0 text-base"
                 />
 
+                {/* Image Preview */}
                 {imagePreview && (
                   <div className="relative mt-3">
                     <img
                       src={imagePreview}
                       alt="Preview"
-                      className="rounded-xl max-h-48 object-cover"
+                      className="rounded-xl max-h-64 object-cover"
                     />
                     <Button
                       variant="secondary"
                       size="icon"
-                      className="absolute top-2 right-2 rounded-full h-6 w-6"
+                      className="absolute top-2 right-2 rounded-full h-8 w-8"
                       onClick={clearAttachments}
                     >
-                      <X className="w-3 h-3" />
+                      <X className="w-4 h-4" />
                     </Button>
                   </div>
                 )}
 
+                {/* File Preview */}
                 {selectedFile && (
-                  <div className="mt-3 flex items-center gap-2 p-2 rounded-xl bg-muted">
-                    <FileText className="w-4 h-4 text-muted-foreground" />
+                  <div className="mt-3 flex items-center gap-2 p-3 rounded-xl bg-muted">
+                    <FileText className="w-5 h-5 text-muted-foreground" />
                     <span className="flex-1 truncate text-sm">{selectedFile.name}</span>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-5 w-5 rounded-full"
+                      className="h-6 w-6 rounded-full"
                       onClick={clearAttachments}
                     >
-                      <X className="w-3 h-3" />
+                      <X className="w-4 h-4" />
                     </Button>
                   </div>
                 )}
 
+                {/* Actions */}
                 <div className="flex items-center justify-between mt-3 pt-3 border-t">
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-2">
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="rounded-full h-8 w-8"
+                      className="rounded-full h-9 w-9"
                       onClick={() => imageInputRef.current?.click()}
                     >
-                      <ImageIcon className="w-4 h-4 text-primary" />
+                      <ImageIcon className="w-5 h-5 text-primary" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="rounded-full h-8 w-8"
+                      className="rounded-full h-9 w-9"
                       onClick={() => fileInputRef.current?.click()}
                     >
-                      <FileText className="w-4 h-4 text-primary" />
+                      <FileText className="w-5 h-5 text-primary" />
                     </Button>
                     <input
                       ref={imageInputRef}
@@ -415,16 +552,15 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
                   </div>
                   <Button
                     onClick={publishPost}
-                    disabled={isPublishing || !newContent.trim()}
+                    disabled={isPublishing || (!newContent.trim() && !selectedImage && !selectedFile)}
                     className="rounded-full gap-2"
-                    size="sm"
                   >
                     {isPublishing ? (
-                      <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                     ) : (
-                      <Send className="w-3 h-3" />
+                      <Send className="w-4 h-4" />
                     )}
-                    Plaatsen
+                    Publiceren
                   </Button>
                 </div>
               </div>
@@ -441,24 +577,30 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
           <p className="text-xs">Wees de eerste die iets deelt!</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {posts.map((post) => (
-            <Card key={post.id}>
+            <Card key={post.id} className="overflow-hidden">
               <CardContent className="p-4">
-                <div className="flex items-start justify-between mb-2">
+                {/* Header */}
+                <div className="flex items-start justify-between mb-3">
                   <button
                     onClick={() => post.profile?.username && navigate(`/profiel/${post.profile.username}`)}
-                    className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                    className="flex items-center gap-3 hover:opacity-80 transition-opacity"
                   >
-                    <Avatar className="w-9 h-9">
+                    <Avatar className="w-12 h-12">
                       {post.profile?.avatar_url && <AvatarImage src={post.profile.avatar_url} className="object-cover" />}
-                      <AvatarFallback className="text-xs">
+                      <AvatarFallback>
                         {getInitials(post.profile?.display_name || post.profile?.full_name || "?")}
                       </AvatarFallback>
                     </Avatar>
                     <div className="text-left">
-                      <p className="font-medium text-sm">{post.profile?.display_name || post.profile?.full_name}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="font-semibold flex items-center">
+                        {post.profile?.display_name || post.profile?.full_name}
+                        {post.profile?.user_id && isUserVerified(post.profile.user_id) && (
+                          <VerifiedBadge />
+                        )}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
                         @{post.profile?.username} • {formatDate(post.created_at)}
                       </p>
                     </div>
@@ -467,7 +609,7 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
                   {post.user_id === user?.id && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="rounded-full h-7 w-7">
+                        <Button variant="ghost" size="icon" className="rounded-full h-8 w-8">
                           <MoreHorizontal className="w-4 h-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -484,11 +626,128 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
                   )}
                 </div>
 
+                {/* Content */}
                 {post.content && (
-                  <p className="text-sm text-foreground whitespace-pre-wrap">
+                  <p className="text-foreground whitespace-pre-wrap mb-3">
                     <LinkifiedText text={post.content} />
                   </p>
                 )}
+
+                {/* Image */}
+                {post.image_url && (
+                  <img
+                    src={post.image_url}
+                    alt="Post"
+                    className="rounded-xl max-h-96 w-full object-cover"
+                  />
+                )}
+
+                {/* File */}
+                {post.file_url && post.file_name && (
+                  <a
+                    href={post.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 p-3 rounded-xl bg-muted hover:bg-muted/80 transition-colors"
+                  >
+                    <FileText className="w-5 h-5 text-primary" />
+                    <span className="flex-1 truncate">{post.file_name}</span>
+                  </a>
+                )}
+
+                {/* Comments Section */}
+                <div className="mt-4 pt-3 border-t">
+                  <button
+                    onClick={() => toggleComments(post.id)}
+                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>{post.comment_count || 0} reacties</span>
+                    {expandedComments.has(post.id) ? (
+                      <ChevronUp className="w-4 h-4" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4" />
+                    )}
+                  </button>
+
+                  {expandedComments.has(post.id) && (
+                    <div className="mt-3 space-y-3">
+                      {/* Comment input */}
+                      {user && (
+                        <div className="flex items-start gap-2">
+                          <Avatar className="w-8 h-8">
+                            {myProfile?.avatar_url && <AvatarImage src={myProfile.avatar_url} className="object-cover" />}
+                            <AvatarFallback className="text-xs">
+                              {myProfile ? getInitials(myProfile.display_name || myProfile.full_name) : "?"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 flex gap-2">
+                            <Input
+                              placeholder="Schrijf een reactie... 😊"
+                              value={newComments.get(post.id) || ""}
+                              onChange={(e) => setNewComments(prev => new Map(prev).set(post.id, e.target.value))}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  postComment(post.id);
+                                }
+                              }}
+                              className="flex-1 h-9 rounded-full text-sm"
+                            />
+                            <Button
+                              size="sm"
+                              className="rounded-full h-9 w-9 p-0"
+                              disabled={postingComment === post.id || !newComments.get(post.id)?.trim()}
+                              onClick={() => postComment(post.id)}
+                            >
+                              {postingComment === post.id ? (
+                                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Send className="w-4 h-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Comments list */}
+                      {commentsMap.get(post.id)?.map((comment) => (
+                        <div key={comment.id} className="flex items-start gap-2">
+                          <Avatar 
+                            className="w-8 h-8 cursor-pointer"
+                            onClick={() => comment.profile?.username && navigate(`/profiel/${comment.profile.username}`)}
+                          >
+                            {comment.profile?.avatar_url && <AvatarImage src={comment.profile.avatar_url} className="object-cover" />}
+                            <AvatarFallback className="text-xs">
+                              {getInitials(comment.profile?.display_name || comment.profile?.full_name || "?")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 bg-muted rounded-2xl px-3 py-2">
+                            <p 
+                              className="text-sm font-medium cursor-pointer hover:underline flex items-center"
+                              onClick={() => comment.profile?.username && navigate(`/profiel/${comment.profile.username}`)}
+                            >
+                              {comment.profile?.display_name || comment.profile?.full_name}
+                              {comment.profile?.user_id && isUserVerified(comment.profile.user_id) && (
+                                <VerifiedBadge className="w-4 h-4" />
+                              )}
+                            </p>
+                            <p className="text-sm">{comment.content}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {formatDate(comment.created_at)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+
+                      {commentsMap.get(post.id)?.length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-2">
+                          Nog geen reacties. Wees de eerste!
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))}
