@@ -30,45 +30,67 @@ export function MusicRecommendations({ deviceId, onContextChange }: MusicRecomme
       setError(null);
       
       try {
-        // Get token, try to refresh if expired
+        // First try to get stored token
         let accessToken = getStoredAccessToken();
         
+        // If no valid token, try to refresh
         if (!accessToken) {
-          // Try to refresh the token
           try {
             accessToken = await refreshAccessToken();
           } catch (refreshError) {
-            console.log('Could not refresh token:', refreshError);
-            setError('Niet ingelogd bij Spotify');
+            console.log('Could not refresh token, user may not be connected:', refreshError);
+            setError('Verbind je Spotify account in Instellingen');
             setLoading(false);
             return;
           }
         }
 
         if (!accessToken) {
-          setError('Geen Spotify token beschikbaar');
+          setError('Geen Spotify verbinding gevonden');
           setLoading(false);
           return;
         }
 
-        // Fetch data in parallel
-        const [topArtists, playlists] = await Promise.all([
-          getTopArtists(accessToken, 3).catch(err => {
-            console.error('Error fetching top artists:', err);
-            return [];
-          }),
-          getUserPlaylists(accessToken, 3).catch(err => {
-            console.error('Error fetching playlists:', err);
-            return [];
-          }),
-        ]);
+        // Fetch data in parallel with better error handling
+        let topArtists: any[] = [];
+        let playlists: any[] = [];
+        
+        try {
+          topArtists = await getTopArtists(accessToken, 3);
+        } catch (err: any) {
+          console.error('Error fetching top artists:', err);
+          // If 401, try refresh once more
+          if (err.message?.includes('401') || err.message?.includes('Unauthorized')) {
+            try {
+              accessToken = await refreshAccessToken();
+              topArtists = await getTopArtists(accessToken, 3);
+            } catch (retryErr) {
+              console.error('Retry failed for top artists:', retryErr);
+            }
+          }
+        }
+
+        try {
+          playlists = await getUserPlaylists(accessToken, 3);
+        } catch (err: any) {
+          console.error('Error fetching playlists:', err);
+          // If we have a fresh token from the artists retry, use it
+          if (err.message?.includes('401') || err.message?.includes('Unauthorized')) {
+            try {
+              if (!accessToken) accessToken = await refreshAccessToken();
+              playlists = await getUserPlaylists(accessToken, 3);
+            } catch (retryErr) {
+              console.error('Retry failed for playlists:', retryErr);
+            }
+          }
+        }
 
         const combined: RecommendationItem[] = [
           ...topArtists.map(artist => ({
             id: artist.id,
             name: artist.name,
-            image: artist.images[0]?.url || '',
-            subtitle: artist.genres[0] || 'Artiest',
+            image: artist.images?.[0]?.url || '',
+            subtitle: artist.genres?.[0] || 'Artiest',
             type: 'artist' as const,
             uri: artist.uri,
           })),
