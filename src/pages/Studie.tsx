@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -22,6 +23,7 @@ import { useVerifiedGroups } from "@/hooks/useVerifiedStatus";
 interface StudyGroup {
   id: string;
   name: string;
+  bio: string | null;
   owner_id: string;
   avatar_url: string | null;
   banner_url: string | null;
@@ -116,7 +118,7 @@ function OwnerMemberCard({
         <div className="flex items-center gap-4">
           <Avatar className="w-12 h-12">
             {ownerProfile?.avatar_url && (
-              <AvatarImage src={ownerProfile.avatar_url} />
+              <AvatarImage src={ownerProfile.avatar_url} className="object-cover" />
             )}
             <AvatarFallback className={`font-semibold ${isStudying ? 'bg-green-100 text-green-700' : 'bg-primary/10 text-primary'}`}>
               {getInitials(displayName)}
@@ -178,6 +180,7 @@ export default function Studie() {
   // Group editing
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editGroupName, setEditGroupName] = useState("");
+  const [editGroupBio, setEditGroupBio] = useState("");
   const [isSavingGroup, setIsSavingGroup] = useState(false);
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
   const editAvatarInputRef = useRef<HTMLInputElement>(null);
@@ -823,7 +826,10 @@ export default function Studie() {
     try {
       const { error } = await supabase
         .from('study_groups')
-        .update({ name: editGroupName.trim() })
+        .update({ 
+          name: editGroupName.trim(),
+          bio: editGroupBio.trim() || null 
+        })
         .eq('id', selectedGroup.id);
 
       if (error) throw error;
@@ -831,7 +837,11 @@ export default function Studie() {
       toast.success("Groep bijgewerkt");
       setEditDialogOpen(false);
       loadGroups();
-      setSelectedGroup(prev => prev ? { ...prev, name: editGroupName.trim() } : null);
+      setSelectedGroup(prev => prev ? { 
+        ...prev, 
+        name: editGroupName.trim(),
+        bio: editGroupBio.trim() || null 
+      } : null);
     } catch (error) {
       toast.error("Kon groep niet bijwerken");
     } finally {
@@ -896,29 +906,6 @@ export default function Studie() {
               className="w-full h-full object-cover"
             />
           )}
-          {isOwner && (
-            <>
-              <button
-                onClick={() => editBannerInputRef.current?.click()}
-                disabled={uploadingGroupBanner}
-                className="absolute bottom-3 right-3 px-3 py-1.5 rounded-full bg-background/80 backdrop-blur-sm text-foreground text-sm flex items-center gap-2 hover:bg-background/90 transition-colors"
-              >
-                {uploadingGroupBanner ? (
-                  <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                ) : (
-                  <Camera className="w-4 h-4" />
-                )}
-                <span>Banner wijzigen</span>
-              </button>
-              <input
-                ref={editBannerInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleEditGroupBannerUpload}
-                className="hidden"
-              />
-            </>
-          )}
           <Button
             variant="ghost"
             size="icon"
@@ -929,45 +916,27 @@ export default function Studie() {
           </Button>
         </div>
 
-        {/* Avatar positioned in front of banner - relative to parent, not absolute */}
+        {/* Avatar positioned in front of banner */}
         <div className="relative -mt-12 ml-8 mb-4" style={{ zIndex: 10 }}>
           <div className="relative inline-block">
             <Avatar className="w-20 h-20 border-4 border-background shadow-xl ring-4 ring-background">
               {selectedGroup.avatar_url ? (
-                <AvatarImage src={selectedGroup.avatar_url} />
+                <AvatarImage src={selectedGroup.avatar_url} className="object-cover" />
               ) : null}
               <AvatarFallback className="bg-primary/10 text-primary">
                 <Users className="w-8 h-8" />
               </AvatarFallback>
             </Avatar>
-            {isOwner && (
-              <>
-                <button
-                  onClick={() => editAvatarInputRef.current?.click()}
-                  disabled={uploadingGroupAvatar}
-                  className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors"
-                >
-                  {uploadingGroupAvatar ? (
-                    <div className="w-3.5 h-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                  ) : (
-                    <Camera className="w-3.5 h-3.5" />
-                  )}
-                </button>
-                <input
-                  ref={editAvatarInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleEditGroupAvatarUpload}
-                  className="hidden"
-                />
-              </>
-            )}
           </div>
         </div>
 
-        <div className="flex items-start justify-between mb-8">
+        {/* Group Title and Actions */}
+        <div className="flex items-start justify-between mb-4">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">{selectedGroup.name}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-3xl font-bold text-foreground">{selectedGroup.name}</h1>
+              {verifiedGroupIds.includes(selectedGroup.id) && <VerifiedBadge />}
+            </div>
             <p className="text-muted-foreground">
               {acceptedMembers.length + 1} leden
             </p>
@@ -1021,7 +990,10 @@ export default function Studie() {
 
               <Dialog open={editDialogOpen} onOpenChange={(open) => {
                 setEditDialogOpen(open);
-                if (open) setEditGroupName(selectedGroup.name);
+                if (open) {
+                  setEditGroupName(selectedGroup.name);
+                  setEditGroupBio(selectedGroup.bio || "");
+                }
               }}>
                 <DialogTrigger asChild>
                   <Button variant="ghost" size="icon" className="rounded-full">
@@ -1033,12 +1005,79 @@ export default function Studie() {
                     <DialogTitle>Groep bewerken</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4 pt-4">
+                    {/* Profile picture editing */}
+                    <div className="flex justify-center">
+                      <div className="relative">
+                        <Avatar className="w-20 h-20">
+                          {selectedGroup.avatar_url ? (
+                            <AvatarImage src={selectedGroup.avatar_url} className="object-cover" />
+                          ) : null}
+                          <AvatarFallback className="bg-primary/10 text-primary">
+                            <Users className="w-8 h-8" />
+                          </AvatarFallback>
+                        </Avatar>
+                        <button
+                          onClick={() => editAvatarInputRef.current?.click()}
+                          disabled={uploadingGroupAvatar}
+                          className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors"
+                        >
+                          {uploadingGroupAvatar ? (
+                            <div className="w-3.5 h-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                          ) : (
+                            <Camera className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                        <input
+                          ref={editAvatarInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleEditGroupAvatarUpload}
+                          className="hidden"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Banner editing */}
+                    <div className="space-y-2">
+                      <Label>Banner afbeelding</Label>
+                      <Button
+                        variant="outline"
+                        className="w-full gap-2"
+                        onClick={() => editBannerInputRef.current?.click()}
+                        disabled={uploadingGroupBanner}
+                      >
+                        {uploadingGroupBanner ? (
+                          <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                        ) : (
+                          <Camera className="w-4 h-4" />
+                        )}
+                        Banner wijzigen
+                      </Button>
+                      <input
+                        ref={editBannerInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleEditGroupBannerUpload}
+                        className="hidden"
+                      />
+                    </div>
+
                     <div className="space-y-2">
                       <Label>Groepsnaam</Label>
                       <Input
                         value={editGroupName}
                         onChange={(e) => setEditGroupName(e.target.value)}
                         placeholder="Groepsnaam"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Bio</Label>
+                      <Textarea
+                        value={editGroupBio}
+                        onChange={(e) => setEditGroupBio(e.target.value)}
+                        placeholder="Beschrijf de groep..."
+                        rows={3}
                       />
                     </div>
 
@@ -1087,100 +1126,42 @@ export default function Studie() {
           )}
         </div>
 
-        {/* Study Timer Card */}
-        <Card className="mb-8">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className={`w-16 h-16 rounded-full flex items-center justify-center ${isStudying ? 'bg-primary/10' : 'bg-muted'}`}>
-                  <Clock className={`w-8 h-8 ${isStudying ? 'text-primary' : 'text-muted-foreground'}`} />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold">Studietimer</h2>
-                  <p className="text-muted-foreground">
-                    {isStudying 
-                      ? isPaused 
-                        ? 'Gepauzeerd' 
-                        : 'Je bent aan het studeren' 
-                      : 'Start een studiesessie'}
-                  </p>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-6">
-                <div className="text-right">
-                  <p className={`text-4xl font-mono font-bold tabular-nums ${isPaused ? 'text-muted-foreground' : ''}`}>
-                    {formatTime(elapsedTime)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {isStudying 
-                      ? isPaused 
-                        ? 'Gepauzeerd' 
-                        : 'Huidige sessie' 
-                      : 'Verstreken tijd'}
-                  </p>
-                </div>
-                
-                {isStudying ? (
-                  <div className="flex items-center gap-2">
-                    {/* Pause/Resume button */}
-                    <Button
-                      size="lg"
-                      variant="outline"
-                      onClick={isPaused ? resumeStudySession : pauseStudySession}
-                      className="rounded-full w-14 h-14 p-0"
-                    >
-                      {isPaused ? (
-                        <Play className="w-6 h-6 ml-1" />
-                      ) : (
-                        <Pause className="w-6 h-6" />
-                      )}
-                    </Button>
-                    {/* Finish button */}
-                    <Button
-                      size="lg"
-                      onClick={stopStudySession}
-                      className="rounded-full w-14 h-14 p-0 bg-destructive hover:bg-destructive/90"
-                    >
-                      <X className="w-6 h-6" />
-                    </Button>
-                  </div>
-                ) : (
-                  <Button
-                    size="lg"
-                    onClick={startStudySession}
-                    className="rounded-full w-14 h-14 p-0"
-                  >
-                    <Play className="w-6 h-6 ml-1" />
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Bio section */}
+        {selectedGroup.bio && (
+          <p className="text-muted-foreground mb-6 whitespace-pre-wrap">{selectedGroup.bio}</p>
+        )}
 
-        {/* Tabs for Posts, Members, Materials - reordered, no study timer */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="posts" className="gap-2">
-              <Newspaper className="w-4 h-4" />
-              Posts
-            </TabsTrigger>
-            <TabsTrigger value="members" className="gap-2">
-              <Users className="w-4 h-4" />
-              Leden
-            </TabsTrigger>
-            <TabsTrigger value="materials" className="gap-2">
-              <FolderOpen className="w-4 h-4" />
-              Materiaal
-            </TabsTrigger>
-          </TabsList>
+        {/* Tabs - styled like Dag/Week/Maand selector */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex bg-muted rounded-lg p-1 gap-0.5">
+            {[
+              { value: 'posts', label: 'Posts', icon: Newspaper },
+              { value: 'members', label: 'Leden', icon: Users },
+              { value: 'materials', label: 'Materiaal', icon: FolderOpen },
+            ].map((tab) => (
+              <button 
+                key={tab.value} 
+                onClick={() => setActiveTab(tab.value)} 
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
+                  activeTab === tab.value 
+                    ? 'bg-background text-foreground shadow-sm' 
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
-          <TabsContent value="posts">
-            <GroupPosts groupId={selectedGroup.id} />
-          </TabsContent>
+        {/* Tab Contents */}
+        {activeTab === 'posts' && (
+          <GroupPosts groupId={selectedGroup.id} />
+        )}
 
-          <TabsContent value="members" className="space-y-4">
+        {activeTab === 'members' && (
+          <div className="space-y-4">
             {/* Owner - fetch profile */}
             <OwnerMemberCard 
               ownerId={selectedGroup.owner_id}
@@ -1214,7 +1195,7 @@ export default function Studie() {
                     <div className="flex items-center gap-4">
                       <Avatar className="w-12 h-12">
                         {member.profile?.avatar_url && (
-                          <AvatarImage src={member.profile.avatar_url} />
+                          <AvatarImage src={member.profile.avatar_url} className="object-cover" />
                         )}
                         <AvatarFallback className={`font-semibold ${memberIsStudying ? 'bg-green-100 text-green-700' : 'bg-muted'}`}>
                           {getInitials(displayName)}
@@ -1259,7 +1240,7 @@ export default function Studie() {
                         <div className="flex items-center gap-4">
                           <Avatar className="w-12 h-12">
                             {member.profile?.avatar_url && (
-                              <AvatarImage src={member.profile.avatar_url} />
+                              <AvatarImage src={member.profile.avatar_url} className="object-cover" />
                             )}
                             <AvatarFallback className="bg-yellow-100 text-yellow-700 font-semibold">
                               {getInitials(displayName)}
@@ -1276,16 +1257,16 @@ export default function Studie() {
                 })}
               </>
             )}
-          </TabsContent>
+          </div>
+        )}
 
-          <TabsContent value="materials">
-            <Card>
-              <CardContent className="p-6">
-                <GroupMaterials groupId={selectedGroup.id} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+        {activeTab === 'materials' && (
+          <Card>
+            <CardContent className="p-6">
+              <GroupMaterials groupId={selectedGroup.id} />
+            </CardContent>
+          </Card>
+        )}
       </div>
     );
   }
