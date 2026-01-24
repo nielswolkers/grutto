@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { LinkifiedText } from "@/components/LinkifiedText";
 import { ChevronLeft, User, Calendar, MessageCircle, UserPlus, Check, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { nl } from "date-fns/locale";
@@ -116,7 +117,7 @@ export default function UserProfile() {
   const isOwnProfile = user?.id === profile.user_id;
 
   return (
-    <div className="w-full">
+    <div className="w-full relative">
       <Button
         variant="ghost"
         size="icon"
@@ -127,7 +128,7 @@ export default function UserProfile() {
       </Button>
 
       {/* Banner */}
-      <div className="relative h-48 rounded-2xl overflow-hidden mb-16 bg-gradient-to-br from-primary/20 to-primary/5">
+      <div className="relative h-48 rounded-2xl overflow-hidden mb-20 bg-gradient-to-br from-primary/20 to-primary/5">
         {profile.banner_url && (
           <img
             src={profile.banner_url}
@@ -135,18 +136,18 @@ export default function UserProfile() {
             className="w-full h-full object-cover"
           />
         )}
-        
-        {/* Avatar overlapping banner */}
-        <div className="absolute -bottom-12 left-8">
-          <Avatar className="w-24 h-24 border-4 border-background shadow-lg">
-            {profile.avatar_url ? (
-              <AvatarImage src={profile.avatar_url} alt={displayName} />
-            ) : null}
-            <AvatarFallback className="text-2xl bg-primary/10 text-primary">
-              {getInitials(displayName)}
-            </AvatarFallback>
-          </Avatar>
-        </div>
+      </div>
+      
+      {/* Avatar - positioned in front of banner */}
+      <div className="absolute left-8" style={{ top: 'calc(12rem - 3.5rem)', zIndex: 10 }}>
+        <Avatar className="w-28 h-28 border-4 border-background shadow-xl ring-4 ring-background">
+          {profile.avatar_url ? (
+            <AvatarImage src={profile.avatar_url} alt={displayName} />
+          ) : null}
+          <AvatarFallback className="text-3xl bg-primary/10 text-primary">
+            {getInitials(displayName)}
+          </AvatarFallback>
+        </Avatar>
       </div>
 
       {/* Profile Info */}
@@ -220,7 +221,9 @@ export default function UserProfile() {
                 <Card key={pub.id}>
                   <CardContent className="p-4">
                     {pub.content && (
-                      <p className="text-foreground whitespace-pre-wrap mb-2">{pub.content}</p>
+                      <p className="text-foreground whitespace-pre-wrap mb-2">
+                        <LinkifiedText text={pub.content} />
+                      </p>
                     )}
                     {pub.image_url && (
                       <img

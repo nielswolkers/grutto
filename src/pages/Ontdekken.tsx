@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { LinkifiedText } from "@/components/LinkifiedText";
 import { 
   Search, 
   Image as ImageIcon, 
@@ -650,7 +651,9 @@ export default function Ontdekken() {
 
                 {/* Content */}
                 {pub.content && (
-                  <p className="text-foreground whitespace-pre-wrap mb-3">{pub.content}</p>
+                  <p className="text-foreground whitespace-pre-wrap mb-3">
+                    <LinkifiedText text={pub.content} />
+                  </p>
                 )}
 
                 {/* Image */}
