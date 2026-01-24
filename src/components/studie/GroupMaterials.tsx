@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Upload, FileText, Trash2, Download, File } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Upload, FileText, Trash2, Download, File, Eye, X } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { nl } from "date-fns/locale";
@@ -33,6 +34,10 @@ export function GroupMaterials({ groupId }: GroupMaterialsProps) {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Preview state
+  const [previewMaterial, setPreviewMaterial] = useState<GroupMaterial | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (groupId) {
@@ -137,13 +142,31 @@ export function GroupMaterials({ groupId }: GroupMaterialsProps) {
     }
   };
 
+  const openPreview = async (material: GroupMaterial) => {
+    const { data } = await supabase.storage
+      .from('user-files')
+      .getPublicUrl(material.storage_url);
+
+    if (data?.publicUrl) {
+      setPreviewUrl(data.publicUrl);
+      setPreviewMaterial(material);
+    }
+  };
+
   const handleDownload = async (material: GroupMaterial) => {
     const { data } = await supabase.storage
       .from('user-files')
       .getPublicUrl(material.storage_url);
 
     if (data?.publicUrl) {
-      window.open(data.publicUrl, '_blank');
+      // Force download by creating a link
+      const link = document.createElement('a');
+      link.href = data.publicUrl;
+      link.download = material.filename;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
   };
 
@@ -181,6 +204,75 @@ export function GroupMaterials({ groupId }: GroupMaterialsProps) {
     if (fileType.includes('sheet') || fileType.includes('excel')) return '📊';
     if (fileType.includes('presentation') || fileType.includes('powerpoint')) return '📽️';
     return '📁';
+  };
+
+  const canPreview = (fileType: string) => {
+    return (
+      fileType.startsWith('image/') ||
+      fileType.includes('pdf') ||
+      fileType.startsWith('video/') ||
+      fileType.startsWith('audio/')
+    );
+  };
+
+  const renderPreviewContent = () => {
+    if (!previewMaterial || !previewUrl) return null;
+
+    const fileType = previewMaterial.file_type;
+
+    if (fileType.startsWith('image/')) {
+      return (
+        <img
+          src={previewUrl}
+          alt={previewMaterial.filename}
+          className="max-w-full max-h-[70vh] object-contain mx-auto rounded-lg"
+        />
+      );
+    }
+
+    if (fileType.includes('pdf')) {
+      return (
+        <iframe
+          src={previewUrl}
+          className="w-full h-[70vh] rounded-lg"
+          title={previewMaterial.filename}
+        />
+      );
+    }
+
+    if (fileType.startsWith('video/')) {
+      return (
+        <video
+          src={previewUrl}
+          controls
+          className="max-w-full max-h-[70vh] mx-auto rounded-lg"
+        />
+      );
+    }
+
+    if (fileType.startsWith('audio/')) {
+      return (
+        <div className="flex flex-col items-center gap-4 py-8">
+          <FileText className="w-16 h-16 text-muted-foreground" />
+          <p className="font-medium">{previewMaterial.filename}</p>
+          <audio src={previewUrl} controls className="w-full max-w-md" />
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-col items-center gap-4 py-8">
+        <FileText className="w-16 h-16 text-muted-foreground" />
+        <p className="font-medium">{previewMaterial.filename}</p>
+        <p className="text-sm text-muted-foreground">
+          Dit bestandstype kan niet worden weergegeven
+        </p>
+        <Button onClick={() => handleDownload(previewMaterial)}>
+          <Download className="w-4 h-4 mr-2" />
+          Downloaden
+        </Button>
+      </div>
+    );
   };
 
   if (loading) {
@@ -241,11 +333,23 @@ export function GroupMaterials({ groupId }: GroupMaterialsProps) {
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
+                  {canPreview(material.file_type) && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => openPreview(material)}
+                      className="rounded-full h-8 w-8"
+                      title="Bekijken"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => handleDownload(material)}
                     className="rounded-full h-8 w-8"
+                    title="Downloaden"
                   >
                     <Download className="w-4 h-4" />
                   </Button>
@@ -255,6 +359,7 @@ export function GroupMaterials({ groupId }: GroupMaterialsProps) {
                       size="icon"
                       onClick={() => handleDelete(material)}
                       className="rounded-full h-8 w-8 text-destructive hover:text-destructive"
+                      title="Verwijderen"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -265,6 +370,20 @@ export function GroupMaterials({ groupId }: GroupMaterialsProps) {
           </div>
         </ScrollArea>
       )}
+
+      {/* Preview Dialog */}
+      <Dialog open={!!previewMaterial} onOpenChange={() => setPreviewMaterial(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span className="truncate pr-4">{previewMaterial?.filename}</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="overflow-auto">
+            {renderPreviewContent()}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

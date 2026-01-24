@@ -545,6 +545,39 @@ export type Database = {
         }
         Relationships: []
       }
+      publications: {
+        Row: {
+          content: string | null
+          created_at: string
+          file_name: string | null
+          file_url: string | null
+          id: string
+          image_url: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          file_name?: string | null
+          file_url?: string | null
+          id?: string
+          image_url?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          file_name?: string | null
+          file_url?: string | null
+          id?: string
+          image_url?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       spotify_connections: {
         Row: {
           connected_at: string | null

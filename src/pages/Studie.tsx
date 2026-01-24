@@ -55,6 +55,100 @@ interface StudySession {
   duration_minutes?: number;
 }
 
+// Owner Member Card Component
+function OwnerMemberCard({
+  ownerId,
+  isStudying,
+  elapsedTime,
+  todayMinutes,
+  activeSession,
+  formatTime,
+  formatMinutes,
+  navigateToProfile,
+}: {
+  ownerId: string;
+  isStudying: boolean;
+  elapsedTime: number;
+  todayMinutes: number;
+  activeSession?: StudySession;
+  formatTime: (seconds: number) => string;
+  formatMinutes: (minutes: number) => string;
+  navigateToProfile: (username: string) => void;
+}) {
+  const [ownerProfile, setOwnerProfile] = useState<{
+    username: string;
+    full_name: string;
+    display_name: string | null;
+    avatar_url: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    const loadOwnerProfile = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("username, full_name, display_name, avatar_url")
+        .eq("user_id", ownerId)
+        .single();
+      if (data) setOwnerProfile(data);
+    };
+    loadOwnerProfile();
+  }, [ownerId]);
+
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const displayName = ownerProfile?.display_name || ownerProfile?.full_name || "Beheerder";
+  const currentSessionTime = activeSession 
+    ? Math.floor((Date.now() - new Date(activeSession.started_at).getTime()) / 60000)
+    : 0;
+  const totalTodayMinutes = todayMinutes + currentSessionTime;
+
+  return (
+    <Card 
+      className="cursor-pointer hover:shadow-md transition-shadow"
+      onClick={() => ownerProfile?.username && navigateToProfile(ownerProfile.username)}
+    >
+      <CardContent className="p-4">
+        <div className="flex items-center gap-4">
+          <Avatar className="w-12 h-12">
+            {ownerProfile?.avatar_url && (
+              <AvatarImage src={ownerProfile.avatar_url} />
+            )}
+            <AvatarFallback className={`font-semibold ${isStudying ? 'bg-green-100 text-green-700' : 'bg-primary/10 text-primary'}`}>
+              {getInitials(displayName)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <p className={`font-medium ${isStudying ? 'text-green-600' : ''}`}>
+                {displayName}
+              </p>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">Beheerder</span>
+              {isStudying && (
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              )}
+            </div>
+            {ownerProfile?.username && (
+              <p className="text-sm text-muted-foreground">@{ownerProfile.username}</p>
+            )}
+            {isStudying && (
+              <p className="text-sm text-green-600 mt-1">
+                Aan het studeren • {formatMinutes(totalTodayMinutes)} vandaag
+              </p>
+            )}
+            {!isStudying && totalTodayMinutes > 0 && (
+              <p className="text-sm text-muted-foreground mt-1">
+                {formatMinutes(totalTodayMinutes)} gestudeerd vandaag
+              </p>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Studie() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -937,36 +1031,20 @@ export default function Studie() {
           </TabsList>
 
           <TabsContent value="members" className="space-y-4">
-            {/* Owner */}
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-4">
-                  <Avatar className="w-12 h-12">
-                    <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                      JIJ
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className={`font-medium ${isStudying ? 'text-green-600' : ''}`}>
-                        Jij (Beheerder)
-                      </p>
-                      {isStudying && (
-                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                      )}
-                    </div>
-                    {isStudying && (
-                      <p className="text-sm text-green-600">
-                        Aan het studeren • {formatTime(elapsedTime)} vandaag
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Owner - fetch profile */}
+            <OwnerMemberCard 
+              ownerId={selectedGroup.owner_id}
+              isStudying={selectedGroup.owner_id === user.id ? isStudying : activeSessions.has(selectedGroup.owner_id)}
+              elapsedTime={selectedGroup.owner_id === user.id ? elapsedTime : 0}
+              todayMinutes={selectedGroup.owner_id === user.id ? myTodayStudyMinutes : (todayStudyTimes.get(selectedGroup.owner_id) || 0)}
+              activeSession={activeSessions.get(selectedGroup.owner_id)}
+              formatTime={formatTime}
+              formatMinutes={formatMinutes}
+              navigateToProfile={navigateToProfile}
+            />
 
-            {/* Accepted Members */}
-            {acceptedMembers.map((member) => {
+            {/* Accepted Members (excluding owner) */}
+            {acceptedMembers.filter(m => m.user_id !== selectedGroup.owner_id).map((member) => {
               const memberIsStudying = activeSessions.has(member.user_id);
               const activeSession = activeSessions.get(member.user_id);
               const todayTime = todayStudyTimes.get(member.user_id) || 0;
