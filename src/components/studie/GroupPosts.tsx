@@ -192,7 +192,7 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
           .select("user_id, username, full_name, display_name, avatar_url")
           .in("user_id", userIds);
 
-        // Get comment counts from publication_comments (we'll reuse this table)
+        // Get comment counts from publication_comments
         const postIds = data.map(p => p.id);
         const { data: commentCounts } = await supabase
           .from("publication_comments")
@@ -389,15 +389,16 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
         fileName = selectedFile.name;
       }
 
-      // Create post - using group_messages table
-      // Note: the group_messages table doesn't have image_url, file_url, file_name columns yet
-      // We'll store them in content as a workaround or need a migration
+      // Create post with image and file data
       const { error } = await supabase
         .from("group_messages")
         .insert({
           group_id: groupId,
           sender_id: user.id,
           content: newContent.trim() || null,
+          image_url: imageUrl,
+          file_url: fileUrl,
+          file_name: fileName,
         });
 
       if (error) throw error;
@@ -468,9 +469,9 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
         <Card>
           <CardContent className="p-4">
             <div className="flex gap-3">
-              <Avatar className="w-12 h-12">
+              <Avatar className="w-15 h-15 bg-background" style={{ width: '3.75rem', height: '3.75rem' }}>
                 {myProfile?.avatar_url && <AvatarImage src={myProfile.avatar_url} className="object-cover" />}
-                <AvatarFallback>
+                <AvatarFallback className="bg-background text-foreground">
                   {myProfile ? getInitials(myProfile.display_name || myProfile.full_name) : "?"}
                 </AvatarFallback>
               </Avatar>
@@ -587,9 +588,9 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
                     onClick={() => post.profile?.username && navigate(`/profiel/${post.profile.username}`)}
                     className="flex items-center gap-3 hover:opacity-80 transition-opacity"
                   >
-                    <Avatar className="w-12 h-12">
+                    <Avatar className="w-15 h-15 bg-background" style={{ width: '3.75rem', height: '3.75rem' }}>
                       {post.profile?.avatar_url && <AvatarImage src={post.profile.avatar_url} className="object-cover" />}
-                      <AvatarFallback>
+                      <AvatarFallback className="bg-background text-foreground">
                         {getInitials(post.profile?.display_name || post.profile?.full_name || "?")}
                       </AvatarFallback>
                     </Avatar>
@@ -638,7 +639,7 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
                   <img
                     src={post.image_url}
                     alt="Post"
-                    className="rounded-xl max-h-96 w-full object-cover"
+                    className="rounded-xl max-h-96 w-full object-cover mb-3"
                   />
                 )}
 
@@ -648,7 +649,7 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
                     href={post.file_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-3 p-3 rounded-xl bg-muted hover:bg-muted/80 transition-colors"
+                    className="flex items-center gap-3 p-3 rounded-xl bg-muted hover:bg-muted/80 transition-colors mb-3"
                   >
                     <FileText className="w-5 h-5 text-primary" />
                     <span className="flex-1 truncate">{post.file_name}</span>
@@ -675,9 +676,9 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
                       {/* Comment input */}
                       {user && (
                         <div className="flex items-start gap-2">
-                          <Avatar className="w-8 h-8">
+                          <Avatar className="w-10 h-10 bg-background">
                             {myProfile?.avatar_url && <AvatarImage src={myProfile.avatar_url} className="object-cover" />}
-                            <AvatarFallback className="text-xs">
+                            <AvatarFallback className="text-xs bg-background text-foreground">
                               {myProfile ? getInitials(myProfile.display_name || myProfile.full_name) : "?"}
                             </AvatarFallback>
                           </Avatar>
@@ -714,11 +715,11 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
                       {commentsMap.get(post.id)?.map((comment) => (
                         <div key={comment.id} className="flex items-start gap-2">
                           <Avatar 
-                            className="w-8 h-8 cursor-pointer"
+                            className="w-10 h-10 cursor-pointer bg-background"
                             onClick={() => comment.profile?.username && navigate(`/profiel/${comment.profile.username}`)}
                           >
                             {comment.profile?.avatar_url && <AvatarImage src={comment.profile.avatar_url} className="object-cover" />}
-                            <AvatarFallback className="text-xs">
+                            <AvatarFallback className="text-xs bg-background text-foreground">
                               {getInitials(comment.profile?.display_name || comment.profile?.full_name || "?")}
                             </AvatarFallback>
                           </Avatar>

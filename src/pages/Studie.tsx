@@ -7,10 +7,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Users, X, UserPlus, Play, Pause, Clock, ChevronLeft, MessageCircle, Settings, Trash2, Camera, FolderOpen, Newspaper } from "lucide-react";
+import { Plus, Users, X, UserPlus, Play, Pause, Clock, ChevronLeft, Settings, Trash2, Camera, FolderOpen, Newspaper, Lock, Globe, Square } from "lucide-react";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -19,6 +19,7 @@ import { GroupPosts } from "@/components/studie/GroupPosts";
 import { GroupMaterials } from "@/components/studie/GroupMaterials";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { useVerifiedGroups } from "@/hooks/useVerifiedStatus";
+import { fireConfetti } from "@/components/ConfettiOverlay";
 
 interface StudyGroup {
   id: string;
@@ -27,6 +28,7 @@ interface StudyGroup {
   owner_id: string;
   avatar_url: string | null;
   banner_url: string | null;
+  is_public: boolean;
   created_at: string;
   members?: GroupMember[];
 }
@@ -116,11 +118,11 @@ function OwnerMemberCard({
     >
       <CardContent className="p-4">
         <div className="flex items-center gap-4">
-          <Avatar className="w-12 h-12">
+          <Avatar className="w-15 h-15 bg-background" style={{ width: '3.75rem', height: '3.75rem' }}>
             {ownerProfile?.avatar_url && (
               <AvatarImage src={ownerProfile.avatar_url} className="object-cover" />
             )}
-            <AvatarFallback className={`font-semibold ${isStudying ? 'bg-green-100 text-green-700' : 'bg-primary/10 text-primary'}`}>
+            <AvatarFallback className={`font-semibold bg-background ${isStudying ? 'text-green-700' : 'text-primary'}`}>
               {getInitials(displayName)}
             </AvatarFallback>
           </Avatar>
@@ -161,6 +163,7 @@ export default function Studie() {
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupIsPublic, setNewGroupIsPublic] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<Profile[]>([]);
@@ -181,6 +184,7 @@ export default function Studie() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editGroupName, setEditGroupName] = useState("");
   const [editGroupBio, setEditGroupBio] = useState("");
+  const [editGroupIsPublic, setEditGroupIsPublic] = useState(false);
   const [isSavingGroup, setIsSavingGroup] = useState(false);
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
   const editAvatarInputRef = useRef<HTMLInputElement>(null);
@@ -204,6 +208,9 @@ export default function Studie() {
   const [activeSessions, setActiveSessions] = useState<Map<string, StudySession>>(new Map());
   const [todayStudyTimes, setTodayStudyTimes] = useState<Map<string, number>>(new Map());
   const [myTodayStudyMinutes, setMyTodayStudyMinutes] = useState(0);
+
+  // Confetti for first visit
+  const [showConfetti, setShowConfetti] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -234,6 +241,36 @@ export default function Studie() {
     }
   }, [user]);
 
+  // Check first visit when group is selected
+  useEffect(() => {
+    const checkFirstVisit = async () => {
+      if (!user || !selectedGroup) return;
+
+      // Check if this is a first visit
+      const { data: existingVisit } = await supabase
+        .from("group_first_visits")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("group_id", selectedGroup.id)
+        .maybeSingle();
+
+      if (!existingVisit) {
+        // This is a first visit - record it and show confetti if user was invited
+        await supabase.from("group_first_visits").insert({
+          user_id: user.id,
+          group_id: selectedGroup.id,
+        });
+
+        // Check if user is a member (invited) - not the owner
+        if (selectedGroup.owner_id !== user.id) {
+          fireConfetti();
+        }
+      }
+    };
+
+    checkFirstVisit();
+  }, [selectedGroup, user]);
+
   const loadMyTodayStudyTime = async () => {
     if (!user) return;
     const today = new Date();
@@ -261,15 +298,14 @@ export default function Studie() {
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (isStudying && studyStartTime) {
+    if (isStudying && !isPaused && studyStartTime) {
       interval = setInterval(() => {
         const elapsed = Math.floor((Date.now() - studyStartTime.getTime()) / 1000);
-        // Ensure elapsed time is never negative
         setElapsedTime(Math.max(0, elapsed));
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [isStudying, studyStartTime]);
+  }, [isStudying, isPaused, studyStartTime]);
 
   useEffect(() => {
     if (groups.length > 0) {
@@ -359,9 +395,11 @@ export default function Studie() {
       if (error) throw error;
 
       setIsStudying(true);
+      setIsPaused(false);
       setStudyStartTime(new Date(data.started_at));
       setCurrentSessionId(data.id);
       setElapsedTime(0);
+      setPausedElapsedTime(0);
       toast.success("Studiesessie gestart");
     } catch (error) {
       console.error("Failed to start session:", error);
@@ -378,7 +416,6 @@ export default function Studie() {
 
   const resumeStudySession = () => {
     if (!isPaused) return;
-    // Set new start time accounting for already elapsed time
     const newStartTime = new Date(Date.now() - pausedElapsedTime * 1000);
     setStudyStartTime(newStartTime);
     setIsPaused(false);
@@ -414,7 +451,6 @@ export default function Studie() {
   };
 
   const formatTime = (seconds: number) => {
-    // Ensure seconds is never negative
     const safeSeconds = Math.max(0, seconds);
     const hours = Math.floor(safeSeconds / 3600);
     const mins = Math.floor((safeSeconds % 3600) / 60);
@@ -468,10 +504,10 @@ export default function Studie() {
           .from("study_groups")
           .select("*")
           .in("id", memberGroupIds);
-        joinedGroups = data || [];
+        joinedGroups = (data || []).map(g => ({ ...g, is_public: g.is_public ?? false }));
       }
 
-      const allGroups = [...(ownedGroups || []), ...joinedGroups];
+      const allGroups = [...(ownedGroups || []).map(g => ({ ...g, is_public: g.is_public ?? false })), ...joinedGroups];
       const uniqueGroups = allGroups.filter((group, index, self) => 
         index === self.findIndex(g => g.id === group.id)
       );
@@ -564,7 +600,6 @@ export default function Studie() {
 
       if (error) throw error;
 
-      // Filter out existing members
       const existingMemberIds = selectedGroup.members?.map(m => m.user_id) || [];
       const filtered = (data || []).filter(
         profile => !existingMemberIds.includes(profile.user_id) && profile.user_id !== selectedGroup.owner_id
@@ -587,7 +622,6 @@ export default function Studie() {
 
     setIsInviting(true);
     try {
-      // Direct add - no verification needed, status is 'accepted'
       const { error: memberError } = await supabase
         .from("group_members")
         .insert({
@@ -600,7 +634,6 @@ export default function Studie() {
 
       if (memberError) throw memberError;
 
-      // Notify the user that they've been added
       await supabase.from("notifications").insert({
         recipient_id: profile.user_id,
         sender_id: user.id,
@@ -651,7 +684,6 @@ export default function Studie() {
     try {
       let avatarUrl: string | null = null;
 
-      // Upload avatar if selected - path must start with user.id to match RLS policy
       if (newGroupAvatarFile) {
         const fileExt = newGroupAvatarFile.name.split('.').pop();
         const filePath = `${user.id}/group-avatars/${Date.now()}.${fileExt}`;
@@ -674,6 +706,7 @@ export default function Studie() {
           name: newGroupName.trim(),
           owner_id: user.id,
           avatar_url: avatarUrl,
+          is_public: newGroupIsPublic,
         })
         .select()
         .single();
@@ -688,7 +721,6 @@ export default function Studie() {
       }
 
       if (selectedUsers.length > 0) {
-        // Direct add - no verification needed, status is 'accepted'
         const membersToInsert = selectedUsers.map(u => ({
           group_id: group.id,
           user_id: u.user_id,
@@ -705,7 +737,6 @@ export default function Studie() {
           console.error("Members insertion error:", membersError);
         }
 
-        // Notify users they've been added
         const notifications = selectedUsers.map(u => ({
           recipient_id: u.user_id,
           sender_id: user.id,
@@ -721,6 +752,7 @@ export default function Studie() {
 
       toast.success("Groep aangemaakt!");
       setNewGroupName("");
+      setNewGroupIsPublic(false);
       setSelectedUsers([]);
       setNewGroupAvatarFile(null);
       setNewGroupAvatarPreview(null);
@@ -746,7 +778,6 @@ export default function Studie() {
     setUploadingGroupAvatar(true);
     try {
       const fileExt = file.name.split('.').pop();
-      // Path must start with user.id to match storage RLS policy
       const filePath = `${user!.id}/group-avatars/${selectedGroup.id}-${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
@@ -828,7 +859,8 @@ export default function Studie() {
         .from('study_groups')
         .update({ 
           name: editGroupName.trim(),
-          bio: editGroupBio.trim() || null 
+          bio: editGroupBio.trim() || null,
+          is_public: editGroupIsPublic,
         })
         .eq('id', selectedGroup.id);
 
@@ -840,7 +872,8 @@ export default function Studie() {
       setSelectedGroup(prev => prev ? { 
         ...prev, 
         name: editGroupName.trim(),
-        bio: editGroupBio.trim() || null 
+        bio: editGroupBio.trim() || null,
+        is_public: editGroupIsPublic,
       } : null);
     } catch (error) {
       toast.error("Kon groep niet bijwerken");
@@ -854,13 +887,6 @@ export default function Studie() {
 
     setIsDeletingGroup(true);
     try {
-      // Delete group members first
-      await supabase.from('group_members').delete().eq('group_id', selectedGroup.id);
-      // Delete group messages
-      await supabase.from('group_messages').delete().eq('group_id', selectedGroup.id);
-      // Delete group materials
-      await supabase.from('group_materials').delete().eq('group_id', selectedGroup.id);
-      // Delete the group
       const { error } = await supabase
         .from('study_groups')
         .delete()
@@ -870,9 +896,9 @@ export default function Studie() {
 
       toast.success("Groep verwijderd");
       setSelectedGroup(null);
+      setEditDialogOpen(false);
       loadGroups();
     } catch (error) {
-      console.error("Delete group error:", error);
       toast.error("Kon groep niet verwijderen");
     } finally {
       setIsDeletingGroup(false);
@@ -887,18 +913,24 @@ export default function Studie() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-muted-foreground">Je moet ingelogd zijn om te studeren</p>
+      </div>
+    );
+  }
 
-  // Group detail view
+  // Show group detail view
   if (selectedGroup) {
-    const acceptedMembers = selectedGroup.members?.filter(m => m.status === 'accepted') || [];
-    const pendingMembers = selectedGroup.members?.filter(m => m.status === 'pending') || [];
     const isOwner = selectedGroup.owner_id === user.id;
+    const acceptedMembers = selectedGroup.members?.filter(m => m.status === "accepted") || [];
+    const pendingMembers = selectedGroup.members?.filter(m => m.status === "pending") || [];
 
     return (
       <div className="w-full">
         {/* Group Banner */}
-        <div className="relative h-40 rounded-2xl overflow-hidden mb-16 bg-gradient-to-br from-primary/20 to-primary/5">
+        <div className="relative h-48 rounded-2xl overflow-hidden mb-20 bg-gradient-to-br from-primary/20 to-primary/5">
           {selectedGroup.banner_url && (
             <img
               src={selectedGroup.banner_url}
@@ -916,15 +948,15 @@ export default function Studie() {
           </Button>
         </div>
 
-        {/* Avatar positioned in front of banner */}
-        <div className="relative -mt-12 ml-8 mb-4" style={{ zIndex: 10 }}>
+        {/* Avatar positioned exactly halfway on banner */}
+        <div className="absolute left-8" style={{ top: 'calc(12rem - 4.375rem)', zIndex: 10 }}>
           <div className="relative inline-block">
-            <Avatar className="w-20 h-20 border-4 border-background shadow-xl ring-4 ring-background">
+            <Avatar className="border-4 border-background shadow-xl ring-4 ring-background bg-background" style={{ width: '8.75rem', height: '8.75rem' }}>
               {selectedGroup.avatar_url ? (
                 <AvatarImage src={selectedGroup.avatar_url} className="object-cover" />
               ) : null}
-              <AvatarFallback className="bg-primary/10 text-primary">
-                <Users className="w-8 h-8" />
+              <AvatarFallback className="bg-background text-primary text-3xl">
+                <Users className="w-10 h-10" />
               </AvatarFallback>
             </Avatar>
           </div>
@@ -936,6 +968,7 @@ export default function Studie() {
             <div className="flex items-center gap-2">
               <h1 className="text-3xl font-bold text-foreground">{selectedGroup.name}</h1>
               {verifiedGroupIds.includes(selectedGroup.id) && <VerifiedBadge />}
+              {!selectedGroup.is_public && <Lock className="w-5 h-5 text-muted-foreground" />}
             </div>
             <p className="text-muted-foreground">
               {acceptedMembers.length + 1} leden
@@ -993,6 +1026,7 @@ export default function Studie() {
                 if (open) {
                   setEditGroupName(selectedGroup.name);
                   setEditGroupBio(selectedGroup.bio || "");
+                  setEditGroupIsPublic(selectedGroup.is_public);
                 }
               }}>
                 <DialogTrigger asChild>
@@ -1008,12 +1042,12 @@ export default function Studie() {
                     {/* Profile picture editing */}
                     <div className="flex justify-center">
                       <div className="relative">
-                        <Avatar className="w-20 h-20">
+                        <Avatar className="w-25 h-25 bg-background" style={{ width: '6.25rem', height: '6.25rem' }}>
                           {selectedGroup.avatar_url ? (
                             <AvatarImage src={selectedGroup.avatar_url} className="object-cover" />
                           ) : null}
-                          <AvatarFallback className="bg-primary/10 text-primary">
-                            <Users className="w-8 h-8" />
+                          <AvatarFallback className="bg-background text-primary">
+                            <Users className="w-10 h-10" />
                           </AvatarFallback>
                         </Avatar>
                         <button
@@ -1081,6 +1115,25 @@ export default function Studie() {
                       />
                     </div>
 
+                    {/* Public/Private toggle */}
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label className="flex items-center gap-2">
+                          {editGroupIsPublic ? <Globe className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                          {editGroupIsPublic ? "Openbaar" : "Privé"}
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          {editGroupIsPublic 
+                            ? "Iedereen kan deze groep vinden en lid worden" 
+                            : "Alleen via uitnodiging"}
+                        </p>
+                      </div>
+                      <Switch
+                        checked={editGroupIsPublic}
+                        onCheckedChange={setEditGroupIsPublic}
+                      />
+                    </div>
+
                     <div className="flex gap-2">
                       <Button
                         onClick={saveGroupEdit}
@@ -1126,11 +1179,6 @@ export default function Studie() {
           )}
         </div>
 
-        {/* Bio section */}
-        {selectedGroup.bio && (
-          <p className="text-muted-foreground mb-6 whitespace-pre-wrap">{selectedGroup.bio}</p>
-        )}
-
         {/* Tabs - styled like Dag/Week/Maand selector */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex bg-muted rounded-lg p-1 gap-0.5">
@@ -1162,7 +1210,6 @@ export default function Studie() {
 
         {activeTab === 'members' && (
           <div className="space-y-4">
-            {/* Owner - fetch profile */}
             <OwnerMemberCard 
               ownerId={selectedGroup.owner_id}
               isStudying={selectedGroup.owner_id === user.id ? isStudying : activeSessions.has(selectedGroup.owner_id)}
@@ -1174,7 +1221,6 @@ export default function Studie() {
               navigateToProfile={navigateToProfile}
             />
 
-            {/* Accepted Members (excluding owner) */}
             {acceptedMembers.filter(m => m.user_id !== selectedGroup.owner_id).map((member) => {
               const memberIsStudying = activeSessions.has(member.user_id);
               const activeSession = activeSessions.get(member.user_id);
@@ -1193,11 +1239,11 @@ export default function Studie() {
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center gap-4">
-                      <Avatar className="w-12 h-12">
+                      <Avatar className="w-15 h-15 bg-background" style={{ width: '3.75rem', height: '3.75rem' }}>
                         {member.profile?.avatar_url && (
                           <AvatarImage src={member.profile.avatar_url} className="object-cover" />
                         )}
-                        <AvatarFallback className={`font-semibold ${memberIsStudying ? 'bg-green-100 text-green-700' : 'bg-muted'}`}>
+                        <AvatarFallback className={`font-semibold bg-background ${memberIsStudying ? 'text-green-700' : ''}`}>
                           {getInitials(displayName)}
                         </AvatarFallback>
                       </Avatar>
@@ -1228,7 +1274,6 @@ export default function Studie() {
               );
             })}
 
-            {/* Pending Members */}
             {pendingMembers.length > 0 && (
               <>
                 <h3 className="text-lg font-medium text-muted-foreground mt-6">Uitgenodigd</h3>
@@ -1238,11 +1283,11 @@ export default function Studie() {
                     <Card key={member.id} className="opacity-60">
                       <CardContent className="p-4">
                         <div className="flex items-center gap-4">
-                          <Avatar className="w-12 h-12">
+                          <Avatar className="w-15 h-15 bg-background" style={{ width: '3.75rem', height: '3.75rem' }}>
                             {member.profile?.avatar_url && (
                               <AvatarImage src={member.profile.avatar_url} className="object-cover" />
                             )}
-                            <AvatarFallback className="bg-yellow-100 text-yellow-700 font-semibold">
+                            <AvatarFallback className="bg-background text-yellow-700 font-semibold">
                               {getInitials(displayName)}
                             </AvatarFallback>
                           </Avatar>
@@ -1291,12 +1336,12 @@ export default function Studie() {
               {/* Group avatar selection */}
               <div className="flex justify-center">
                 <div className="relative">
-                  <Avatar className="w-20 h-20">
+                  <Avatar className="w-25 h-25 bg-background" style={{ width: '6.25rem', height: '6.25rem' }}>
                     {newGroupAvatarPreview ? (
-                      <AvatarImage src={newGroupAvatarPreview} />
+                      <AvatarImage src={newGroupAvatarPreview} className="object-cover" />
                     ) : null}
-                    <AvatarFallback className="bg-primary/10 text-primary">
-                      <Users className="w-8 h-8" />
+                    <AvatarFallback className="bg-background text-primary">
+                      <Users className="w-10 h-10" />
                     </AvatarFallback>
                   </Avatar>
                   <button
@@ -1321,6 +1366,25 @@ export default function Studie() {
                   value={newGroupName}
                   onChange={(e) => setNewGroupName(e.target.value)}
                   placeholder="Bijv. Wiskunde studiegroep"
+                />
+              </div>
+
+              {/* Public/Private toggle */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="flex items-center gap-2">
+                    {newGroupIsPublic ? <Globe className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                    {newGroupIsPublic ? "Openbaar" : "Privé"}
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    {newGroupIsPublic 
+                      ? "Iedereen kan deze groep vinden" 
+                      : "Alleen via uitnodiging"}
+                  </p>
+                </div>
+                <Switch
+                  checked={newGroupIsPublic}
+                  onCheckedChange={setNewGroupIsPublic}
                 />
               </div>
 
@@ -1381,6 +1445,7 @@ export default function Studie() {
                   onClick={() => {
                     setCreateDialogOpen(false);
                     setNewGroupName("");
+                    setNewGroupIsPublic(false);
                     setSelectedUsers([]);
                     setNewGroupAvatarFile(null);
                     setNewGroupAvatarPreview(null);
@@ -1412,35 +1477,65 @@ export default function Studie() {
               <div>
                 <h2 className="text-2xl font-bold">Studietimer</h2>
                 <p className="text-muted-foreground">
-                  {isStudying ? 'Je bent aan het studeren' : 'Start een studiesessie'}
+                  {isStudying 
+                    ? isPaused 
+                      ? 'Gepauzeerd' 
+                      : 'Je bent aan het studeren' 
+                    : 'Start een studiesessie'}
                 </p>
                 <p className="text-sm text-primary font-medium mt-1">
-                  Vandaag: {formatMinutes(myTodayStudyMinutes + (isStudying ? Math.floor(elapsedTime / 60) : 0))} gestudeerd
+                  Vandaag: {formatMinutes(myTodayStudyMinutes + (isStudying && !isPaused ? Math.floor(elapsedTime / 60) : 0))} gestudeerd
                 </p>
               </div>
             </div>
             
             <div className="flex items-center gap-6">
               <div className="text-right">
-                <p className="text-4xl font-mono font-bold tabular-nums">
+                <p className={`text-4xl font-mono font-bold tabular-nums ${isPaused ? 'text-muted-foreground' : ''}`}>
                   {formatTime(elapsedTime)}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {isStudying ? 'Huidige sessie' : 'Verstreken tijd'}
+                  {isStudying 
+                    ? isPaused 
+                      ? 'Gepauzeerd' 
+                      : 'Huidige sessie' 
+                    : 'Verstreken tijd'}
                 </p>
               </div>
               
-              <Button
-                size="lg"
-                onClick={isStudying ? stopStudySession : startStudySession}
-                className={`rounded-full w-14 h-14 p-0 ${isStudying ? 'bg-destructive hover:bg-destructive/90' : ''}`}
-              >
-                {isStudying ? (
-                  <Pause className="w-6 h-6" />
-                ) : (
+              {isStudying ? (
+                <div className="flex items-center gap-2">
+                  {/* Pause/Resume button */}
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    onClick={isPaused ? resumeStudySession : pauseStudySession}
+                    className="rounded-full w-14 h-14 p-0"
+                  >
+                    {isPaused ? (
+                      <Play className="w-6 h-6 ml-1" />
+                    ) : (
+                      <Pause className="w-6 h-6" />
+                    )}
+                  </Button>
+                  {/* Stop button */}
+                  <Button
+                    size="lg"
+                    onClick={stopStudySession}
+                    className="rounded-full w-14 h-14 p-0 bg-destructive hover:bg-destructive/90"
+                  >
+                    <Square className="w-5 h-5" />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  size="lg"
+                  onClick={startStudySession}
+                  className="rounded-full w-14 h-14 p-0"
+                >
                   <Play className="w-6 h-6 ml-1" />
-                )}
-              </Button>
+                </Button>
+              )}
             </div>
           </div>
         </CardContent>
@@ -1470,16 +1565,19 @@ export default function Studie() {
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <Avatar className="w-10 h-10">
+                    <Avatar className="w-12.5 h-12.5 bg-background" style={{ width: '3.125rem', height: '3.125rem' }}>
                       {group.avatar_url ? (
-                        <AvatarImage src={group.avatar_url} />
+                        <AvatarImage src={group.avatar_url} className="object-cover" />
                       ) : null}
-                      <AvatarFallback className="bg-primary/10 text-primary">
-                        <Users className="w-5 h-5" />
+                      <AvatarFallback className="bg-background text-primary">
+                        <Users className="w-6 h-6" />
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <h3 className="font-semibold text-foreground">{group.name}</h3>
+                      <h3 className="font-semibold text-foreground flex items-center gap-1">
+                        {group.name}
+                        {!group.is_public && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
+                      </h3>
                       <p className="text-sm text-muted-foreground">
                         {(group.members?.filter(m => m.status === "accepted").length || 0) + 1} leden
                       </p>

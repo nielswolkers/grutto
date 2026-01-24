@@ -319,6 +319,35 @@ export type Database = {
         }
         Relationships: []
       }
+      group_first_visits: {
+        Row: {
+          group_id: string
+          id: string
+          user_id: string
+          visited_at: string
+        }
+        Insert: {
+          group_id: string
+          id?: string
+          user_id: string
+          visited_at?: string
+        }
+        Update: {
+          group_id?: string
+          id?: string
+          user_id?: string
+          visited_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_first_visits_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "study_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       group_materials: {
         Row: {
           created_at: string
@@ -406,8 +435,11 @@ export type Database = {
           content: string | null
           created_at: string
           file_id: string | null
+          file_name: string | null
+          file_url: string | null
           group_id: string
           id: string
+          image_url: string | null
           sender_id: string
           task_id: string | null
         }
@@ -415,8 +447,11 @@ export type Database = {
           content?: string | null
           created_at?: string
           file_id?: string | null
+          file_name?: string | null
+          file_url?: string | null
           group_id: string
           id?: string
+          image_url?: string | null
           sender_id: string
           task_id?: string | null
         }
@@ -424,8 +459,11 @@ export type Database = {
           content?: string | null
           created_at?: string
           file_id?: string | null
+          file_name?: string | null
+          file_url?: string | null
           group_id?: string
           id?: string
+          image_url?: string | null
           sender_id?: string
           task_id?: string | null
         }
@@ -680,6 +718,7 @@ export type Database = {
           bio: string | null
           created_at: string
           id: string
+          is_public: boolean | null
           name: string
           owner_id: string
           updated_at: string
@@ -690,6 +729,7 @@ export type Database = {
           bio?: string | null
           created_at?: string
           id?: string
+          is_public?: boolean | null
           name: string
           owner_id: string
           updated_at?: string
@@ -700,6 +740,7 @@ export type Database = {
           bio?: string | null
           created_at?: string
           id?: string
+          is_public?: boolean | null
           name?: string
           owner_id?: string
           updated_at?: string

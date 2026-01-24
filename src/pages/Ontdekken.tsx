@@ -91,6 +91,7 @@ interface StudyGroup {
   name: string;
   avatar_url: string | null;
   owner_id: string;
+  is_public?: boolean;
 }
 
 type SearchResultType = 
@@ -384,11 +385,12 @@ export default function Ontdekken() {
 
       profiles?.forEach(p => results.push({ type: 'profile', data: p }));
 
-      // Search study groups (public ones - owned by anyone)
+      // Search study groups (only public ones)
       const { data: groups } = await supabase
         .from("study_groups")
-        .select("id, name, avatar_url, owner_id")
+        .select("id, name, avatar_url, owner_id, is_public")
         .ilike("name", `%${query}%`)
+        .eq("is_public", true)
         .limit(5);
 
       groups?.forEach(g => results.push({ type: 'group', data: g }));
@@ -668,11 +670,19 @@ export default function Ontdekken() {
                         return (
                           <div
                             key={`group-${g.id}`}
-                            className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors"
+                            className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors cursor-pointer"
+                            onClick={() => {
+                              if (isMember || isOwner) {
+                                navigate("/studie");
+                              } else {
+                                navigate(`/groep/${g.id}`);
+                              }
+                              setSearchQuery("");
+                            }}
                           >
-                            <Avatar className="w-10 h-10">
+                            <Avatar className="w-12.5 h-12.5 bg-background" style={{ width: '3.125rem', height: '3.125rem' }}>
                               {g.avatar_url && <AvatarImage src={g.avatar_url} className="object-cover" />}
-                              <AvatarFallback><Users className="w-5 h-5" /></AvatarFallback>
+                              <AvatarFallback className="bg-background text-primary"><Users className="w-5 h-5" /></AvatarFallback>
                             </Avatar>
                             <div className="text-left flex-1">
                               <p className="font-medium flex items-center">

@@ -206,13 +206,13 @@ export default function UserProfile() {
         )}
       </div>
       
-      {/* Avatar - positioned in front of banner */}
-      <div className="absolute left-8" style={{ top: 'calc(12rem - 3.5rem)', zIndex: 10 }}>
-        <Avatar className="w-28 h-28 border-4 border-background shadow-xl ring-4 ring-background">
+      {/* Avatar - positioned exactly halfway on banner */}
+      <div className="absolute left-8" style={{ top: 'calc(12rem - 4.375rem)', zIndex: 10 }}>
+        <Avatar className="border-4 border-background shadow-xl ring-4 ring-background bg-background" style={{ width: '8.75rem', height: '8.75rem' }}>
           {profile.avatar_url ? (
             <AvatarImage src={profile.avatar_url} alt={displayName} className="object-cover" />
           ) : null}
-          <AvatarFallback className="text-3xl bg-primary/10 text-primary">
+          <AvatarFallback className="text-3xl bg-background text-primary">
             {getInitials(displayName)}
           </AvatarFallback>
         </Avatar>
