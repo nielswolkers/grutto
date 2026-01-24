@@ -262,6 +262,27 @@ export type Database = {
           },
         ]
       }
+      follows: {
+        Row: {
+          created_at: string
+          follower_id: string
+          following_id: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          follower_id: string
+          following_id: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          follower_id?: string
+          following_id?: string
+          id?: string
+        }
+        Relationships: []
+      }
       google_calendar_connections: {
         Row: {
           access_token: string | null
@@ -345,6 +366,7 @@ export type Database = {
           group_id: string
           id: string
           invited_by: string
+          request_type: string | null
           responded_at: string | null
           status: string
           user_id: string
@@ -354,6 +376,7 @@ export type Database = {
           group_id: string
           id?: string
           invited_by: string
+          request_type?: string | null
           responded_at?: string | null
           status?: string
           user_id: string
@@ -363,6 +386,7 @@ export type Database = {
           group_id?: string
           id?: string
           invited_by?: string
+          request_type?: string | null
           responded_at?: string | null
           status?: string
           user_id?: string
@@ -544,6 +568,41 @@ export type Database = {
           username?: string
         }
         Relationships: []
+      }
+      publication_comments: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          publication_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          publication_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          publication_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publication_comments_publication_id_fkey"
+            columns: ["publication_id"]
+            isOneToOne: false
+            referencedRelation: "publications"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       publications: {
         Row: {
