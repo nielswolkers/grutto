@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { LinkifiedText } from "@/components/LinkifiedText";
 import { useVerifiedGroups } from "@/hooks/useVerifiedStatus";
 import { ChevronLeft, Users, Calendar, UserPlus, Check, Lock } from "lucide-react";
 import { format } from "date-fns";
@@ -30,8 +31,7 @@ export default function GroupProfile() {
   const [loading, setLoading] = useState(true);
   const [memberCount, setMemberCount] = useState(0);
   const [isMember, setIsMember] = useState(false);
-  const [hasPendingRequest, setHasPendingRequest] = useState(false);
-  const [requestingJoin, setRequestingJoin] = useState(false);
+  const [joining, setJoining] = useState(false);
   const { verifiedGroupIds } = useVerifiedGroups();
 
   useEffect(() => {
@@ -72,12 +72,8 @@ export default function GroupProfile() {
             .eq("user_id", user.id)
             .maybeSingle();
 
-          if (memberData) {
-            if (memberData.status === "accepted") {
-              setIsMember(true);
-            } else if (memberData.status === "pending") {
-              setHasPendingRequest(true);
-            }
+          if (memberData && memberData.status === "accepted") {
+            setIsMember(true);
           }
         }
       }
@@ -88,35 +84,29 @@ export default function GroupProfile() {
     }
   };
 
-  const requestJoin = async () => {
+  // Public groups: anyone can join directly without request
+  const joinGroup = async () => {
     if (!user || !group) return;
 
-    setRequestingJoin(true);
+    setJoining(true);
     try {
-      // Create join request
+      // Insert as accepted member directly for public groups
       await supabase.from("group_members").insert({
         group_id: group.id,
         user_id: user.id,
         invited_by: user.id,
-        status: "pending",
-        request_type: "request",
+        status: "accepted",
+        request_type: "join",
       });
 
-      // Notify the group owner
-      await supabase.from("notifications").insert({
-        recipient_id: group.owner_id,
-        sender_id: user.id,
-        type: "group_join_request",
-        message: `wil lid worden van "${group.name}"`,
-      });
-
-      setHasPendingRequest(true);
-      toast.success("Verzoek verstuurd naar de groepsbeheerder");
+      setIsMember(true);
+      toast.success("Je bent nu lid van deze groep!");
+      navigate("/studie");
     } catch (error) {
-      console.error("Join request error:", error);
-      toast.error("Kon verzoek niet versturen");
+      console.error("Join error:", error);
+      toast.error("Kon niet lid worden");
     } finally {
-      setRequestingJoin(false);
+      setJoining(false);
     }
   };
 
@@ -167,7 +157,7 @@ export default function GroupProfile() {
       </Button>
 
       {/* Banner */}
-      <div className="relative h-48 rounded-2xl overflow-hidden mb-20 bg-gradient-to-br from-primary/20 to-primary/5">
+      <div className="relative h-48 rounded-2xl overflow-hidden bg-gradient-to-br from-primary/20 to-primary/5">
         {group.banner_url && (
           <img
             src={group.banner_url}
@@ -177,9 +167,9 @@ export default function GroupProfile() {
         )}
       </div>
       
-      {/* Avatar - positioned exactly halfway on banner */}
-      <div className="absolute left-8" style={{ top: 'calc(12rem - 4.375rem)', zIndex: 10 }}>
-        <Avatar className="w-35 h-35 border-4 border-background shadow-xl ring-4 ring-background bg-background" style={{ width: '8.75rem', height: '8.75rem' }}>
+      {/* Avatar - positioned exactly halfway on banner (decreased by 10%) */}
+      <div className="relative flex justify-start px-8" style={{ marginTop: '-3.9375rem' }}>
+        <Avatar className="border-4 border-background shadow-xl ring-4 ring-background bg-background" style={{ width: '7.875rem', height: '7.875rem' }}>
           {group.avatar_url ? (
             <AvatarImage src={group.avatar_url} alt={group.name} className="object-cover" />
           ) : null}
@@ -190,7 +180,7 @@ export default function GroupProfile() {
       </div>
 
       {/* Group Info */}
-      <div className="px-2">
+      <div className="px-2 mt-4">
         <div className="flex items-start justify-between mb-4">
           <div>
             <h1 className="text-2xl font-bold inline-flex items-center gap-2">
@@ -201,30 +191,23 @@ export default function GroupProfile() {
             <p className="text-muted-foreground">{memberCount} leden</p>
           </div>
           
-          {hasPendingRequest ? (
-            <Button variant="secondary" disabled className="rounded-full gap-2">
-              <Check className="w-4 h-4" />
-              Verzoek verstuurd
-            </Button>
-          ) : (
-            <Button
-              onClick={requestJoin}
-              disabled={requestingJoin}
-              className="rounded-full gap-2"
-            >
-              {requestingJoin ? (
-                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <UserPlus className="w-4 h-4" />
-              )}
-              Lid worden
-            </Button>
-          )}
+          <Button
+            onClick={joinGroup}
+            disabled={joining}
+            className="rounded-full gap-2"
+          >
+            {joining ? (
+              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <UserPlus className="w-4 h-4" />
+            )}
+            Lid worden
+          </Button>
         </div>
 
         {group.bio && (
           <p className="text-foreground mb-6 whitespace-pre-wrap">
-            {group.bio}
+            <LinkifiedText text={group.bio} />
           </p>
         )}
 

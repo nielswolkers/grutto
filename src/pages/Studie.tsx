@@ -930,7 +930,7 @@ export default function Studie() {
     return (
       <div className="w-full">
         {/* Group Banner */}
-        <div className="relative h-48 rounded-2xl overflow-hidden mb-20 bg-gradient-to-br from-primary/20 to-primary/5">
+        <div className="relative h-48 rounded-2xl overflow-hidden bg-gradient-to-br from-primary/20 to-primary/5">
           {selectedGroup.banner_url && (
             <img
               src={selectedGroup.banner_url}
@@ -948,10 +948,10 @@ export default function Studie() {
           </Button>
         </div>
 
-        {/* Avatar positioned exactly halfway on banner */}
-        <div className="absolute left-8" style={{ top: 'calc(12rem - 4.375rem)', zIndex: 10 }}>
+        {/* Avatar positioned exactly halfway on banner (decreased by 10%) */}
+        <div className="relative flex justify-start px-8" style={{ marginTop: '-3.9375rem', zIndex: 10 }}>
           <div className="relative inline-block">
-            <Avatar className="border-4 border-background shadow-xl ring-4 ring-background bg-background" style={{ width: '8.75rem', height: '8.75rem' }}>
+            <Avatar className="border-4 border-background shadow-xl ring-4 ring-background bg-background" style={{ width: '7.875rem', height: '7.875rem' }}>
               {selectedGroup.avatar_url ? (
                 <AvatarImage src={selectedGroup.avatar_url} className="object-cover" />
               ) : null}
@@ -963,7 +963,7 @@ export default function Studie() {
         </div>
 
         {/* Group Title and Actions */}
-        <div className="flex items-start justify-between mb-4">
+        <div className="flex items-start justify-between mb-4 mt-4">
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-3xl font-bold text-foreground">{selectedGroup.name}</h1>
@@ -1205,7 +1205,7 @@ export default function Studie() {
 
         {/* Tab Contents */}
         {activeTab === 'posts' && (
-          <GroupPosts groupId={selectedGroup.id} />
+          <GroupPosts groupId={selectedGroup.id} isPublicGroup={selectedGroup.is_public} isAdmin={isOwner} />
         )}
 
         {activeTab === 'members' && (
@@ -1576,6 +1576,7 @@ export default function Studie() {
                     <div>
                       <h3 className="font-semibold text-foreground flex items-center gap-1">
                         {group.name}
+                        {group.is_public && verifiedGroupIds.includes(group.id) && <VerifiedBadge className="w-4 h-4" />}
                         {!group.is_public && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
                       </h3>
                       <p className="text-sm text-muted-foreground">
