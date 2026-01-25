@@ -645,6 +645,12 @@ export default function Ontdekken() {
             placeholder="Zoek accounts, groepen en publicaties..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && searchQuery.length >= 2) {
+                // Show search results when pressing enter
+                search(searchQuery);
+              }
+            }}
             className="pl-12 h-12 text-lg rounded-full bg-muted/50 border-none focus-visible:ring-2"
           />
         </div>
@@ -816,10 +822,10 @@ export default function Ontdekken() {
         <Card className="mb-6">
           <CardContent className="p-4">
             <div className="flex gap-3">
-              <Avatar className="w-12 h-12">
-                {myProfile?.avatar_url && <AvatarImage src={myProfile.avatar_url} className="object-cover" />}
-                <AvatarFallback>
-                  {myProfile ? getInitials(myProfile.display_name || myProfile.full_name) : "?"}
+              <Avatar className="w-12 h-12 bg-background">
+                <AvatarImage src={myProfile?.avatar_url || undefined} className="object-cover" />
+                <AvatarFallback className="bg-muted">
+                  {myProfile ? getInitials(myProfile.display_name || myProfile.full_name) : <User className="w-5 h-5" />}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1">

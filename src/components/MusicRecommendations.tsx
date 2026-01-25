@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Play } from 'lucide-react';
 import { getTopArtists, getUserPlaylists, getArtistTopTracks, playContext } from '@/api/spotifyApi';
 import { toast } from '@/hooks/use-toast';
 import { getStoredAccessToken, refreshAccessToken } from '@/auth/spotifyAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from './ui/button';
 
 interface RecommendationItem {
@@ -20,9 +22,51 @@ interface MusicRecommendationsProps {
 }
 
 export function MusicRecommendations({ deviceId, onContextChange }: MusicRecommendationsProps) {
+  const { user } = useAuth();
   const [items, setItems] = useState<RecommendationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const getAccessTokenWithFallback = useCallback(async (): Promise<string | null> => {
+    // First try localStorage token
+    let accessToken = getStoredAccessToken();
+    
+    if (accessToken) return accessToken;
+    
+    // Try to refresh the token
+    try {
+      accessToken = await refreshAccessToken();
+      if (accessToken) return accessToken;
+    } catch (e) {
+      console.log('localStorage refresh failed, trying database...');
+    }
+    
+    // Fallback: Try to get refresh token from Supabase
+    if (user) {
+      try {
+        const { data: spotifyConnection } = await supabase
+          .from('spotify_connections')
+          .select('spotify_refresh_token, spotify_token')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        
+        if (spotifyConnection?.spotify_refresh_token) {
+          // Store in localStorage and try again
+          localStorage.setItem('refresh_token', spotifyConnection.spotify_refresh_token);
+          if (spotifyConnection.spotify_token) {
+            localStorage.setItem('access_token', spotifyConnection.spotify_token);
+          }
+          
+          accessToken = await refreshAccessToken();
+          return accessToken;
+        }
+      } catch (dbError) {
+        console.error('Database fallback failed:', dbError);
+      }
+    }
+    
+    return null;
+  }, [user]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -30,55 +74,43 @@ export function MusicRecommendations({ deviceId, onContextChange }: MusicRecomme
       setError(null);
       
       try {
-        // First try to get stored token
-        let accessToken = getStoredAccessToken();
-        
-        // If no valid token, try to refresh
-        if (!accessToken) {
-          try {
-            accessToken = await refreshAccessToken();
-          } catch (refreshError) {
-            console.log('Could not refresh token, user may not be connected:', refreshError);
-            setError('Verbind je Spotify account in Instellingen');
-            setLoading(false);
-            return;
-          }
-        }
+        const accessToken = await getAccessTokenWithFallback();
 
         if (!accessToken) {
-          setError('Geen Spotify verbinding gevonden');
+          setError('Verbind je Spotify account in Instellingen');
           setLoading(false);
           return;
         }
 
-        // Fetch data in parallel with better error handling
+        // Fetch data in parallel with robust error handling
         let topArtists: any[] = [];
         let playlists: any[] = [];
+        let retryToken = accessToken;
         
+        // Fetch top artists with retry
         try {
-          topArtists = await getTopArtists(accessToken, 3);
+          topArtists = await getTopArtists(retryToken, 3);
         } catch (err: any) {
           console.error('Error fetching top artists:', err);
-          // If 401, try refresh once more
-          if (err.message?.includes('401') || err.message?.includes('Unauthorized')) {
+          if (err.message?.includes('401') || err.message?.includes('Failed')) {
             try {
-              accessToken = await refreshAccessToken();
-              topArtists = await getTopArtists(accessToken, 3);
+              retryToken = await refreshAccessToken();
+              topArtists = await getTopArtists(retryToken, 3);
             } catch (retryErr) {
               console.error('Retry failed for top artists:', retryErr);
             }
           }
         }
 
+        // Fetch playlists with retry
         try {
-          playlists = await getUserPlaylists(accessToken, 3);
+          playlists = await getUserPlaylists(retryToken, 3);
         } catch (err: any) {
           console.error('Error fetching playlists:', err);
-          // If we have a fresh token from the artists retry, use it
-          if (err.message?.includes('401') || err.message?.includes('Unauthorized')) {
+          if (err.message?.includes('401') || err.message?.includes('Failed')) {
             try {
-              if (!accessToken) accessToken = await refreshAccessToken();
-              playlists = await getUserPlaylists(accessToken, 3);
+              const freshToken = await refreshAccessToken();
+              playlists = await getUserPlaylists(freshToken, 3);
             } catch (retryErr) {
               console.error('Retry failed for playlists:', retryErr);
             }
@@ -118,21 +150,17 @@ export function MusicRecommendations({ deviceId, onContextChange }: MusicRecomme
     };
 
     fetchData();
-  }, []);
+  }, [getAccessTokenWithFallback]);
 
   const handleItemClick = async (item: RecommendationItem) => {
-    let accessToken = getStoredAccessToken();
+    let accessToken = await getAccessTokenWithFallback();
     
     if (!accessToken) {
-      try {
-        accessToken = await refreshAccessToken();
-      } catch {
-        toast({
-          title: 'Niet ingelogd',
-          description: 'Log opnieuw in bij Spotify',
-        });
-        return;
-      }
+      toast({
+        title: 'Niet ingelogd',
+        description: 'Log opnieuw in bij Spotify',
+      });
+      return;
     }
 
     if (!deviceId) {

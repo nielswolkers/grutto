@@ -91,6 +91,7 @@ interface Poll {
   question: string;
   created_at: string;
   created_by: string;
+  group_id: string;
   options: any[];
 }
 
@@ -197,7 +198,7 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
     try {
       const { data: pollsData } = await supabase
         .from("polls")
-        .select("id, question, created_at, created_by")
+        .select("id, question, created_at, created_by, group_id")
         .eq("group_id", groupId)
         .order("created_at", { ascending: false });
 
@@ -227,6 +228,7 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
 
       const enrichedPolls = pollsData.map(poll => ({
         ...poll,
+        group_id: poll.group_id,
         options: (optionsData || [])
           .filter(o => o.poll_id === poll.id)
           .map(opt => ({
@@ -576,8 +578,8 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
           <CardContent className="p-4">
             <div className="flex gap-3">
               <Avatar className="w-15 h-15 bg-background" style={{ width: '3.75rem', height: '3.75rem' }}>
-                {myProfile?.avatar_url && <AvatarImage src={myProfile.avatar_url} className="object-cover" />}
-                <AvatarFallback className="bg-background text-foreground">
+                <AvatarImage src={myProfile?.avatar_url || undefined} className="object-cover" />
+                <AvatarFallback className="bg-muted text-foreground">
                   {myProfile ? getInitials(myProfile.display_name || myProfile.full_name) : "?"}
                 </AvatarFallback>
               </Avatar>
@@ -695,7 +697,7 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
 
       {/* Polls */}
       {polls.map((poll) => (
-        <PollCard key={poll.id} poll={poll} onVote={loadPolls} />
+        <PollCard key={poll.id} poll={poll} onVote={loadPolls} isAdmin={isAdmin} />
       ))}
 
       {/* Posts Feed */}
