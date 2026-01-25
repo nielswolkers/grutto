@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { LinkifiedText } from "@/components/LinkifiedText";
 import { useVerifiedGroups } from "@/hooks/useVerifiedStatus";
+import { extractDominantColor } from "@/utils/colorExtractor";
 import { ChevronLeft, Users, Calendar, Check, Lock } from "lucide-react";
 import { format } from "date-fns";
 import { nl } from "date-fns/locale";
@@ -21,66 +22,6 @@ interface GroupProfileData {
   is_public: boolean;
   owner_id: string;
   created_at: string;
-}
-
-// Function to extract dominant color from image (simplified - uses first pixel area)
-function extractDominantColor(imageUrl: string): Promise<string> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve('hsl(var(--primary))');
-          return;
-        }
-        
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-        
-        // Sample multiple points and find the most vibrant color
-        const samplePoints = [
-          [Math.floor(img.width * 0.25), Math.floor(img.height * 0.25)],
-          [Math.floor(img.width * 0.75), Math.floor(img.height * 0.25)],
-          [Math.floor(img.width * 0.5), Math.floor(img.height * 0.5)],
-        ];
-        
-        let bestColor = { r: 0, g: 0, b: 0, saturation: 0 };
-        
-        for (const [x, y] of samplePoints) {
-          const data = ctx.getImageData(x, y, 1, 1).data;
-          const r = data[0], g = data[1], b = data[2];
-          
-          // Skip white/near-white colors
-          if (r > 240 && g > 240 && b > 240) continue;
-          // Skip very dark colors
-          if (r < 20 && g < 20 && b < 20) continue;
-          
-          // Calculate saturation
-          const max = Math.max(r, g, b);
-          const min = Math.min(r, g, b);
-          const saturation = max === 0 ? 0 : (max - min) / max;
-          
-          if (saturation > bestColor.saturation) {
-            bestColor = { r, g, b, saturation };
-          }
-        }
-        
-        if (bestColor.saturation > 0.1) {
-          resolve(`rgb(${bestColor.r}, ${bestColor.g}, ${bestColor.b})`);
-        } else {
-          resolve('hsl(var(--primary))');
-        }
-      } catch {
-        resolve('hsl(var(--primary))');
-      }
-    };
-    img.onerror = () => resolve('hsl(var(--primary))');
-    img.src = imageUrl;
-  });
 }
 
 export default function GroupProfile() {
@@ -248,7 +189,8 @@ export default function GroupProfile() {
 
       {/* Group Info */}
       <div className="px-2 mt-4">
-        <div className="flex items-start justify-between mb-4">
+        {/* Header with name and button on the same row */}
+        <div className="flex items-center justify-between mb-2">
           <div>
             <h1 className="text-2xl font-bold inline-flex items-center gap-2">
               {group.name}
@@ -257,24 +199,24 @@ export default function GroupProfile() {
             </h1>
             <p className="text-muted-foreground">{memberCount} leden</p>
           </div>
+          
+          {/* Join button - positioned on same row as title */}
+          <Button
+            onClick={joinGroup}
+            disabled={joining}
+            className="rounded-full text-white"
+            style={{ backgroundColor: buttonColor, borderColor: buttonColor }}
+          >
+            {joining ? (
+              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            ) : (
+              "Lid worden"
+            )}
+          </Button>
         </div>
-        
-        {/* Join button positioned closer to header */}
-        <Button
-          onClick={joinGroup}
-          disabled={joining}
-          className="rounded-full mt-2"
-          style={{ backgroundColor: buttonColor, borderColor: buttonColor }}
-        >
-          {joining ? (
-            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-          ) : (
-            "Lid worden"
-          )}
-        </Button>
 
         {group.bio && (
-          <p className="text-foreground mb-6 whitespace-pre-wrap">
+          <p className="text-foreground mb-6 whitespace-pre-wrap mt-4">
             <LinkifiedText text={group.bio} />
           </p>
         )}
