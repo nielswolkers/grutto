@@ -11,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { LinkifiedText } from "@/components/LinkifiedText";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { useVerifiedUsers, useVerifiedGroups } from "@/hooks/useVerifiedStatus";
+import { CommunityDetailView } from "@/components/communities/CommunityDetailView";
 import { 
   Search, 
   Image as ImageIcon, 
@@ -138,6 +139,7 @@ export default function Ontdekken() {
   const [myPublicGroups, setMyPublicGroups] = useState<StudyGroup[]>([]);
   const [allPublicGroups, setAllPublicGroups] = useState<StudyGroup[]>([]);
   const [requestingJoin, setRequestingJoin] = useState<string | null>(null);
+  const [selectedCommunity, setSelectedCommunity] = useState<StudyGroup | null>(null);
 
   const isUserVerified = (userId: string) => verifiedUserIds.includes(userId);
   const isGroupVerified = (groupId: string) => verifiedGroupIds.includes(groupId);
@@ -643,7 +645,7 @@ export default function Ontdekken() {
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
+    <div className="w-full">
       {/* Page Title */}
       <h1 className="text-4xl font-bold mb-6">Communities</h1>
 
@@ -674,7 +676,7 @@ export default function Ontdekken() {
       </div>
 
       {activeView === "mijn" ? (
-        // My Communities View
+        // My Communities View - with group selection for chat
         <div className="space-y-4">
           {myPublicGroups.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
@@ -689,12 +691,21 @@ export default function Ontdekken() {
                 Ontdekken
               </Button>
             </div>
+          ) : selectedCommunity ? (
+            // Community Detail View with Posts/Chat
+            <CommunityDetailView 
+              group={selectedCommunity}
+              user={user}
+              onBack={() => setSelectedCommunity(null)}
+              isGroupVerified={isGroupVerified}
+            />
           ) : (
+            // Community List
             myPublicGroups.map((group) => (
               <Card 
                 key={group.id}
                 className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => navigate("/studie")}
+                onClick={() => setSelectedCommunity(group)}
               >
                 <CardContent className="p-4 flex items-center gap-4">
                   <Avatar className="w-14 h-14 bg-background">
@@ -855,17 +866,19 @@ export default function Ontdekken() {
         </div>
       )}
 
-      {/* Create Publication (like LinkedIn) */}
-      {user && (
-        <Card className="mb-6">
-          <CardContent className="p-4">
-            <div className="flex gap-3">
-              <Avatar className="w-12 h-12 bg-background">
-                <AvatarImage src={myProfile?.avatar_url || undefined} className="object-cover" />
-                <AvatarFallback className="bg-muted">
-                  {myProfile ? getInitials(myProfile.display_name || myProfile.full_name) : <User className="w-5 h-5" />}
-                </AvatarFallback>
-              </Avatar>
+      {/* Publications section - constrained width for posts */}
+      <div className="max-w-2xl mx-auto">
+        {/* Create Publication (like LinkedIn) */}
+        {user && (
+          <Card className="mb-6">
+            <CardContent className="p-4">
+              <div className="flex gap-3">
+                <Avatar className="w-12 h-12 bg-background">
+                  <AvatarImage src={myProfile?.avatar_url || undefined} className="object-cover" />
+                  <AvatarFallback className="bg-muted">
+                    {myProfile ? getInitials(myProfile.display_name || myProfile.full_name) : "?"}
+                  </AvatarFallback>
+                </Avatar>
               <div className="flex-1">
                 <Textarea
                   placeholder="Deel iets met de community... (Ctrl+V om afbeelding te plakken)"
@@ -1149,6 +1162,7 @@ export default function Ontdekken() {
           ))}
         </div>
       )}
+      </div>
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!publicationToDelete} onOpenChange={() => setPublicationToDelete(null)}>

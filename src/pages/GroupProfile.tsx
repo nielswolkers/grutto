@@ -109,7 +109,7 @@ export default function GroupProfile() {
 
       setIsMember(true);
       toast.success("Je bent nu lid van deze Community!");
-      navigate("/studie");
+      navigate("/communities");
     } catch (error) {
       console.error("Join error:", error);
       toast.error("Kon niet lid worden");
@@ -188,7 +188,7 @@ export default function GroupProfile() {
             
             {/* Go to Community button */}
             <Button
-              onClick={() => navigate("/studie")}
+              onClick={() => navigate("/communities")}
               className="rounded-full"
             >
               Ga naar community
