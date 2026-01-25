@@ -9,7 +9,7 @@ import { LinkifiedText } from "@/components/LinkifiedText";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { useVerifiedUsers } from "@/hooks/useVerifiedStatus";
 import { UserGroupAffiliations } from "@/components/studie/UserGroupAffiliations";
-import { ChevronLeft, User, Calendar, UserPlus, Check, FileText } from "lucide-react";
+import { ChevronLeft, User, Calendar, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { nl } from "date-fns/locale";
 import { toast } from "sonner";
@@ -224,8 +224,8 @@ export default function UserProfile() {
         </Avatar>
       </div>
 
-      {/* Profile Info - decreased vertical distance */}
-      <div className="px-2 mt-2">
+      {/* Profile Info - increased vertical distance to match community pages */}
+      <div className="px-2 mt-4">
         <div className="flex items-start justify-between mb-4">
           <div>
             <h1 className="text-2xl font-bold inline-flex items-center">
@@ -248,20 +248,14 @@ export default function UserProfile() {
               variant={isFollowing ? "secondary" : "default"}
               onClick={handleFollow}
               disabled={followLoading}
-              className="rounded-full gap-2"
+              className={`rounded-full ${!isFollowing ? 'bg-foreground text-background hover:bg-foreground/90' : ''}`}
             >
               {followLoading ? (
                 <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
               ) : isFollowing ? (
-                <>
-                  <Check className="w-4 h-4" />
-                  Volgend
-                </>
+                "Volgend"
               ) : (
-                <>
-                  <UserPlus className="w-4 h-4" />
-                  Volgen
-                </>
+                "Volgen"
               )}
             </Button>
           )}
@@ -294,36 +288,39 @@ export default function UserProfile() {
           </div>
         </div>
 
-        {/* Publications */}
+        {/* Recent Publications - horizontally stacked */}
         {publications.length > 0 && (
           <div>
-            <h2 className="text-lg font-semibold mb-4">Publicaties</h2>
-            <div className="space-y-4">
-              {publications.map((pub) => (
-                <Card key={pub.id}>
+            <h2 className="text-lg font-semibold mb-4">Recente publicaties</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {publications.slice(0, 3).map((pub) => (
+                <Card key={pub.id} className="overflow-hidden">
                   <CardContent className="p-4">
+                    {/* Channel indicator - Ontdekken posts */}
+                    <div className="flex items-center gap-2 mb-2 pb-2 border-b">
+                      <Avatar className="w-5 h-5 bg-primary/10">
+                        <AvatarFallback className="text-[10px] text-primary">O</AvatarFallback>
+                      </Avatar>
+                      <span className="text-xs text-muted-foreground">Ontdekken</span>
+                    </div>
+                    
                     {pub.content && (
-                      <p className="text-foreground whitespace-pre-wrap mb-2">
-                        <LinkifiedText text={pub.content} />
+                      <p className="text-sm text-foreground line-clamp-3">
+                        {pub.content.length > 100 ? `${pub.content.substring(0, 100)}...` : pub.content}
                       </p>
                     )}
-                    {pub.image_url && (
+                    {pub.image_url && !pub.content && (
                       <img
                         src={pub.image_url}
                         alt="Publication"
-                        className="rounded-xl max-h-64 object-cover mb-2"
+                        className="rounded-lg h-20 w-full object-cover"
                       />
                     )}
-                    {pub.file_url && pub.file_name && (
-                      <a
-                        href={pub.file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 p-2 rounded-lg bg-muted text-sm hover:bg-muted/80"
-                      >
+                    {pub.file_url && pub.file_name && !pub.content && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <FileText className="w-4 h-4" />
-                        {pub.file_name}
-                      </a>
+                        <span className="truncate">{pub.file_name}</span>
+                      </div>
                     )}
                     <p className="text-xs text-muted-foreground mt-2">
                       {formatDate(pub.created_at)}

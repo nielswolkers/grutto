@@ -257,20 +257,21 @@ export default function GroupProfile() {
             </h1>
             <p className="text-muted-foreground">{memberCount} leden</p>
           </div>
-          
-          <Button
-            onClick={joinGroup}
-            disabled={joining}
-            className="rounded-full"
-            style={{ backgroundColor: buttonColor, borderColor: buttonColor }}
-          >
-            {joining ? (
-              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-            ) : (
-              "Lid worden"
-            )}
-          </Button>
         </div>
+        
+        {/* Join button positioned closer to header */}
+        <Button
+          onClick={joinGroup}
+          disabled={joining}
+          className="rounded-full mt-2"
+          style={{ backgroundColor: buttonColor, borderColor: buttonColor }}
+        >
+          {joining ? (
+            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+          ) : (
+            "Lid worden"
+          )}
+        </Button>
 
         {group.bio && (
           <p className="text-foreground mb-6 whitespace-pre-wrap">

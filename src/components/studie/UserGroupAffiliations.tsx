@@ -81,22 +81,22 @@ export function UserGroupAffiliations({ userId }: UserGroupAffiliationsProps) {
             e.stopPropagation();
             navigate(`/groep/${group.id}`);
           }}
-          className="flex items-center gap-2 p-2 rounded-lg bg-background/90 backdrop-blur-sm shadow-sm hover:bg-background transition-colors text-left"
+          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-background shadow-md hover:shadow-lg transition-all text-left cursor-pointer"
         >
-          <Avatar className="w-7 h-7 bg-background">
+          <Avatar className="w-8 h-8 bg-background">
             {group.avatar_url ? (
               <AvatarImage src={group.avatar_url} className="object-cover" />
             ) : null}
-            <AvatarFallback className="bg-background text-primary text-xs">
-              <Users className="w-3.5 h-3.5" />
+            <AvatarFallback className="bg-muted text-primary text-xs">
+              <Users className="w-4 h-4" />
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium truncate flex items-center gap-1">
+            <p className="text-sm font-medium truncate flex items-center gap-1">
               {group.name}
               {verifiedGroupIds.includes(group.id) && <VerifiedBadge className="w-3.5 h-3.5" />}
             </p>
-            <p className="text-[10px] text-muted-foreground">Community beheerder</p>
+            <p className="text-xs text-muted-foreground">Community beheerder</p>
           </div>
         </button>
       ))}

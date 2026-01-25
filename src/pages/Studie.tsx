@@ -1588,10 +1588,13 @@ export default function Studie() {
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
-      ) : groups.length === 0 ? (
+      ) : groups.filter(g => !g.is_public).length === 0 ? (
         <div className="text-center py-12">
           <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-          <p className="text-muted-foreground mb-4">Nog geen studiegroepen</p>
+          <p className="text-muted-foreground mb-4">Nog geen privé studiegroepen</p>
+          <p className="text-sm text-muted-foreground mb-4">
+            Publieke communities vind je op de Ontdekken pagina
+          </p>
           <Button onClick={() => setCreateDialogOpen(true)} className="rounded-full gap-2">
             <Plus className="w-4 h-4" />
             Maak je eerste groep
@@ -1599,7 +1602,8 @@ export default function Studie() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {groups.map((group) => (
+          {/* Only show PRIVATE groups in Studie - public groups are in Ontdekken */}
+          {groups.filter(g => !g.is_public).map((group) => (
             <Card 
               key={group.id} 
               className="hover:shadow-md transition-shadow cursor-pointer"
@@ -1619,9 +1623,7 @@ export default function Studie() {
                     <div>
                       <h3 className="font-semibold text-foreground flex items-center gap-1">
                         {group.name}
-                        {/* Only show verified badge for PUBLIC groups */}
-                        {group.is_public && verifiedGroupIds.includes(group.id) && <VerifiedBadge className="w-4 h-4" />}
-                        {!group.is_public && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
+                        <Lock className="w-3.5 h-3.5 text-muted-foreground" />
                       </h3>
                       <p className="text-sm text-muted-foreground">
                         {(group.members?.filter(m => m.status === "accepted").length || 0) + 1} leden
