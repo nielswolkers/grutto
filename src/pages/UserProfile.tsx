@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LinkifiedText } from "@/components/LinkifiedText";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { useVerifiedUsers } from "@/hooks/useVerifiedStatus";
+import { UserGroupAffiliations } from "@/components/studie/UserGroupAffiliations";
 import { ChevronLeft, User, Calendar, UserPlus, Check, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { nl } from "date-fns/locale";
@@ -259,6 +260,11 @@ export default function UserProfile() {
               )}
             </Button>
           )}
+        </div>
+
+        {/* Group Affiliations - show max 2 public groups where user is admin */}
+        <div className="absolute right-4 top-0">
+          <UserGroupAffiliations userId={profile.user_id} />
         </div>
 
         {/* Follow stats */}

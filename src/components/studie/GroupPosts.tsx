@@ -10,6 +10,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LinkifiedText, extractMentions } from "@/components/LinkifiedText";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { useVerifiedUsers } from "@/hooks/useVerifiedStatus";
+import { PostReactions } from "./PostReactions";
+import { PollCard } from "./PollCard";
+import { CreatePollDialog } from "./CreatePollDialog";
 import { 
   Image as ImageIcon, 
   FileText, 
@@ -19,7 +22,8 @@ import {
   Trash2,
   MessageCircle,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  BarChart3
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -82,6 +86,14 @@ interface Profile {
   avatar_url: string | null;
 }
 
+interface Poll {
+  id: string;
+  question: string;
+  created_at: string;
+  created_by: string;
+  options: any[];
+}
+
 interface GroupPostsProps {
   groupId: string;
   isPublicGroup?: boolean;
@@ -116,8 +128,13 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
   const [newComments, setNewComments] = useState<Map<string, string>>(new Map());
   const [postingComment, setPostingComment] = useState<string | null>(null);
 
+  // Polls state
+  const [polls, setPolls] = useState<Poll[]>([]);
+  const [showPollDialog, setShowPollDialog] = useState(false);
+
   useEffect(() => {
     loadPosts();
+    loadPolls();
     loadMyProfile();
 
     const channel = supabase
@@ -174,6 +191,59 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
       .eq("user_id", user.id)
       .single();
     if (data) setMyProfile(data);
+  };
+
+  const loadPolls = async () => {
+    try {
+      const { data: pollsData } = await supabase
+        .from("polls")
+        .select("id, question, created_at, created_by")
+        .eq("group_id", groupId)
+        .order("created_at", { ascending: false });
+
+      if (!pollsData || pollsData.length === 0) {
+        setPolls([]);
+        return;
+      }
+
+      // Load options and votes for each poll
+      const pollIds = pollsData.map(p => p.id);
+      const { data: optionsData } = await supabase
+        .from("poll_options")
+        .select("id, poll_id, option_text, sort_order")
+        .in("poll_id", pollIds);
+
+      const { data: votesData } = await supabase
+        .from("poll_votes")
+        .select("id, poll_id, option_id, user_id")
+        .in("poll_id", pollIds);
+
+      // Get voter profiles
+      const voterIds = [...new Set(votesData?.map(v => v.user_id) || [])];
+      const { data: voterProfiles } = voterIds.length > 0 ? await supabase
+        .from("profiles")
+        .select("user_id, avatar_url, full_name")
+        .in("user_id", voterIds) : { data: [] };
+
+      const enrichedPolls = pollsData.map(poll => ({
+        ...poll,
+        options: (optionsData || [])
+          .filter(o => o.poll_id === poll.id)
+          .map(opt => ({
+            ...opt,
+            votes: (votesData || [])
+              .filter(v => v.option_id === opt.id)
+              .map(vote => ({
+                ...vote,
+                profile: voterProfiles?.find(p => p.user_id === vote.user_id)
+              }))
+          }))
+      }));
+
+      setPolls(enrichedPolls);
+    } catch (error) {
+      console.error("Failed to load polls:", error);
+    }
   };
 
   const loadPosts = async () => {
@@ -573,6 +643,15 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
                     >
                       <FileText className="w-5 h-5 text-primary" />
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="rounded-full h-9 w-9"
+                      onClick={() => setShowPollDialog(true)}
+                      title="Poll aanmaken"
+                    >
+                      <BarChart3 className="w-5 h-5 text-primary" />
+                    </Button>
                     <input
                       ref={imageInputRef}
                       type="file"
@@ -606,8 +685,21 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
         </Card>
       )}
 
+      {/* Poll Creation Dialog */}
+      <CreatePollDialog
+        groupId={groupId}
+        open={showPollDialog}
+        onOpenChange={setShowPollDialog}
+        onPollCreated={loadPolls}
+      />
+
+      {/* Polls */}
+      {polls.map((poll) => (
+        <PollCard key={poll.id} poll={poll} onVote={loadPolls} />
+      ))}
+
       {/* Posts Feed */}
-      {posts.length === 0 ? (
+      {posts.length === 0 && polls.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           <MessageCircle className="w-10 h-10 mx-auto mb-3 opacity-50" />
           <p className="text-sm">Nog geen posts in deze groep</p>
@@ -692,6 +784,11 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
                   </a>
                 )}
 
+                {/* Reactions Section */}
+                <div className="mt-3">
+                  <PostReactions messageId={post.id} />
+                </div>
+
                 {/* Comments Section */}
                 <div className="mt-4 pt-3 border-t">
                   <button
@@ -699,7 +796,7 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
                     className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     <MessageCircle className="w-4 h-4" />
-                    <span>{post.comment_count || 0} reacties</span>
+                    <span>{post.comment_count || 0} opmerkingen</span>
                     {expandedComments.has(post.id) ? (
                       <ChevronUp className="w-4 h-4" />
                     ) : (

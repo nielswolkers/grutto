@@ -77,6 +77,15 @@ interface GroupJoinRequest {
   };
 }
 
+interface AdminRequest {
+  id: string;
+  group_id: string;
+  requester_id: string;
+  status: string;
+  group?: { id: string; name: string };
+  requester?: { full_name: string; display_name: string | null; username: string };
+}
+
 const formatFileSize = (bytes: number): string => {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
@@ -90,6 +99,7 @@ const Meldingen = () => {
   const [eventInvitations, setEventInvitations] = useState<EventInvitation[]>([]);
   const [groupInvitations, setGroupInvitations] = useState<GroupInvitation[]>([]);
   const [groupJoinRequests, setGroupJoinRequests] = useState<GroupJoinRequest[]>([]);
+  const [adminRequests, setAdminRequests] = useState<AdminRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -98,9 +108,49 @@ const Meldingen = () => {
       loadEventInvitations();
       loadGroupInvitations();
       loadGroupJoinRequests();
+      loadAdminRequests();
       markAllAsReadOnOpen();
     }
   }, [user]);
+
+  const loadAdminRequests = async () => {
+    if (!user) return;
+    try {
+      const { data } = await supabase
+        .from("group_admin_requests")
+        .select("id, group_id, requester_id, status")
+        .eq("target_admin_id", user.id)
+        .eq("status", "pending");
+
+      if (!data || data.length === 0) { setAdminRequests([]); return; }
+
+      const groupIds = data.map(r => r.group_id);
+      const requesterIds = data.map(r => r.requester_id);
+      const { data: groups } = await supabase.from("study_groups").select("id, name").in("id", groupIds);
+      const { data: profiles } = await supabase.from("profiles").select("user_id, full_name, display_name, username").in("user_id", requesterIds);
+
+      setAdminRequests(data.map(req => ({
+        ...req,
+        group: groups?.find(g => g.id === req.group_id),
+        requester: profiles?.find(p => p.user_id === req.requester_id)
+      })));
+    } catch (error) { console.error("Load admin requests error:", error); }
+  };
+
+  const respondToAdminRequest = async (request: AdminRequest, accept: boolean) => {
+    if (!user) return;
+    try {
+      await supabase.from("group_admin_requests").update({ status: accept ? "accepted" : "declined", responded_at: new Date().toISOString() }).eq("id", request.id);
+      if (accept) {
+        await supabase.from("group_admins").insert({ group_id: request.group_id, user_id: request.requester_id });
+        await supabase.from("notifications").insert({ recipient_id: request.requester_id, sender_id: user.id, type: "admin_accepted", message: `Je bent nu beheerder van "${request.group?.name}"` });
+      } else {
+        await supabase.from("notifications").insert({ recipient_id: request.requester_id, sender_id: user.id, type: "admin_declined", message: `Je verzoek om beheerder te worden van "${request.group?.name}" is afgewezen` });
+      }
+      toast.success(accept ? "Beheerder toegevoegd" : "Verzoek afgewezen");
+      loadAdminRequests();
+    } catch (error) { toast.error("Kon niet reageren"); }
+  };
 
   const markAllAsReadOnOpen = async () => {
     if (!user) return;
@@ -485,7 +535,7 @@ const Meldingen = () => {
 
   if (!user) return null;
 
-  const hasAnyContent = notifications.length > 0 || eventInvitations.length > 0 || groupInvitations.length > 0 || groupJoinRequests.length > 0;
+  const hasAnyContent = notifications.length > 0 || eventInvitations.length > 0 || groupInvitations.length > 0 || groupJoinRequests.length > 0 || adminRequests.length > 0;
 
   return (
     <div className="w-full">
