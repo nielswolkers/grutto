@@ -6,10 +6,8 @@ interface LinkifiedTextProps {
   className?: string;
 }
 
-// Regex to match URLs (including without protocol) and @mentions
-// Matches: https://..., http://..., www..., or domain.extension patterns
-const URL_REGEX = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])|(www\.[^\s<]+[^<.,:;"')\]\s])|([a-zA-Z0-9][-a-zA-Z0-9]*\.(com|org|net|edu|gov|io|co|nl|de|uk|info|biz|app|dev|ai|tech|me|tv|cc|us|ca|fr|es|it|au|jp|kr|cn|ru|in|br|mx|za|ng|ke|gh|eg|sa)[^\s<]*[^<.,:;"')\]\s])/gi;
-const MENTION_REGEX = /@([a-zA-Z0-9_]+)/g;
+// Regex to match URLs (including without protocol), @mentions, and #hashtags
+const COMBINED_REGEX = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])|(www\.[^\s<]+[^<.,:;"')\]\s])|([a-zA-Z0-9][-a-zA-Z0-9]*\.(com|org|net|edu|gov|io|co|nl|de|uk|info|biz|app|dev|ai|tech|me|tv|cc|us|ca|fr|es|it|au|jp|kr|cn|ru|in|br|mx|za|ng|ke|gh|eg|sa)[^\s<]*[^<.,:;"')\]\s])|(@[a-zA-Z0-9_]+)|(#[a-zA-Z0-9_]+)/gi;
 
 export function LinkifiedText({ text, className = "" }: LinkifiedTextProps) {
   if (!text) return null;
@@ -17,13 +15,10 @@ export function LinkifiedText({ text, className = "" }: LinkifiedTextProps) {
   const elements: React.ReactNode[] = [];
   let lastIndex = 0;
   
-  // Combined regex for URLs (with or without protocol) and @mentions
-  const combinedRegex = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])|(www\.[^\s<]+[^<.,:;"')\]\s])|([a-zA-Z0-9][-a-zA-Z0-9]*\.(com|org|net|edu|gov|io|co|nl|de|uk|info|biz|app|dev|ai|tech|me|tv|cc|us|ca|fr|es|it|au|jp|kr|cn|ru|in|br|mx|za|ng|ke|gh|eg|sa)[^\s<]*[^<.,:;"')\]\s])|(@[a-zA-Z0-9_]+)/gi;
-  
   let match: RegExpExecArray | null;
-  combinedRegex.lastIndex = 0;
+  COMBINED_REGEX.lastIndex = 0;
 
-  while ((match = combinedRegex.exec(text)) !== null) {
+  while ((match = COMBINED_REGEX.exec(text)) !== null) {
     // Add text before the match
     if (match.index > lastIndex) {
       elements.push(
@@ -46,8 +41,23 @@ export function LinkifiedText({ text, className = "" }: LinkifiedTextProps) {
           {matchedText}
         </Link>
       );
-    } else {
-      // It's a URL
+    } 
+    // Check if it's a hashtag
+    else if (matchedText.startsWith('#')) {
+      const hashtag = matchedText.slice(1);
+      elements.push(
+        <Link
+          key={`hashtag-${match.index}`}
+          to={`/zoeken?q=%23${hashtag}`}
+          className="text-primary font-medium hover:underline"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {matchedText}
+        </Link>
+      );
+    } 
+    // It's a URL
+    else {
       const href = matchedText.startsWith('http') ? matchedText : `https://${matchedText}`;
       elements.push(
         <a
@@ -85,4 +95,17 @@ export function extractMentions(text: string): string[] {
   }
   
   return [...new Set(mentions)]; // Remove duplicates
+}
+
+// Helper function to extract #hashtags from text
+export function extractHashtags(text: string): string[] {
+  const hashtags: string[] = [];
+  let match: RegExpExecArray | null;
+  const regex = /#([a-zA-Z0-9_]+)/g;
+  
+  while ((match = regex.exec(text)) !== null) {
+    hashtags.push(match[1]);
+  }
+  
+  return [...new Set(hashtags)]; // Remove duplicates
 }

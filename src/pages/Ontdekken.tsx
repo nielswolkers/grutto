@@ -423,30 +423,7 @@ export default function Ontdekken() {
 
       groups?.forEach(g => results.push({ type: 'group', data: g }));
 
-      // Search publications
-      const { data: pubs } = await supabase
-        .from("publications")
-        .select("*")
-        .ilike("content", `%${query}%`)
-        .limit(5);
-
-      if (pubs && pubs.length > 0) {
-        const userIds = [...new Set(pubs.map(p => p.user_id))];
-        const { data: pubProfiles } = await supabase
-          .from("profiles")
-          .select("user_id, username, full_name, display_name, avatar_url")
-          .in("user_id", userIds);
-
-        pubs.forEach(pub => {
-          results.push({
-            type: 'publication',
-            data: {
-              ...pub,
-              profile: pubProfiles?.find(p => p.user_id === pub.user_id)
-            }
-          });
-        });
-      }
+      // NOTE: Publications are NOT shown in inline search - only in search results page
 
       setSearchResults(results);
     } catch (error) {
@@ -756,27 +733,9 @@ export default function Ontdekken() {
                         );
                       }
 
+                      // Publications are not shown in inline search - only in search results page
                       if (result.type === 'publication') {
-                        const pub = result.data;
-                        return (
-                          <div
-                            key={`pub-${pub.id}`}
-                            className="p-3 rounded-xl hover:bg-muted transition-colors"
-                          >
-                            <div className="flex items-center gap-2 mb-1">
-                              <Avatar className="w-6 h-6">
-                                {pub.profile?.avatar_url && <AvatarImage src={pub.profile.avatar_url} />}
-                                <AvatarFallback className="text-xs">
-                                  {getInitials(pub.profile?.display_name || pub.profile?.full_name || "?")}
-                                </AvatarFallback>
-                              </Avatar>
-                              <span className="text-sm font-medium">
-                                {pub.profile?.display_name || pub.profile?.full_name}
-                              </span>
-                            </div>
-                            <p className="text-sm text-muted-foreground line-clamp-2">{pub.content}</p>
-                          </div>
-                        );
+                        return null;
                       }
 
                       return null;

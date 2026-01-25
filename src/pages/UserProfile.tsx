@@ -224,9 +224,10 @@ export default function UserProfile() {
         </Avatar>
       </div>
 
-      {/* Profile Info - increased vertical distance to match community pages */}
+      {/* Profile Info - same vertical spacing as community pages */}
       <div className="px-2 mt-4">
-        <div className="flex items-start justify-between mb-4">
+        {/* Header with name and button on the same row */}
+        <div className="flex items-center justify-between mb-2">
           <div>
             <h1 className="text-2xl font-bold inline-flex items-center">
               {displayName}
@@ -235,6 +236,7 @@ export default function UserProfile() {
             <p className="text-muted-foreground">@{profile.username}</p>
           </div>
           
+          {/* Follow/Edit button - positioned on same row as title */}
           {isOwnProfile ? (
             <Button
               variant="outline"
@@ -245,10 +247,10 @@ export default function UserProfile() {
             </Button>
           ) : (
             <Button
-              variant={isFollowing ? "secondary" : "default"}
               onClick={handleFollow}
               disabled={followLoading}
               className={`rounded-full ${!isFollowing ? 'bg-foreground text-background hover:bg-foreground/90' : ''}`}
+              variant={isFollowing ? "secondary" : "default"}
             >
               {followLoading ? (
                 <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -262,7 +264,7 @@ export default function UserProfile() {
         </div>
 
         {/* Follow stats */}
-        <div className="flex items-center gap-4 mb-4">
+        <div className="flex items-center gap-4 mb-4 mt-4">
           <div className="flex items-center gap-1">
             <span className="font-semibold">{followerCount}</span>
             <span className="text-muted-foreground text-sm">volgers</span>
@@ -275,7 +277,7 @@ export default function UserProfile() {
 
         {profile.bio && (
           <p className="text-foreground mb-6 whitespace-pre-wrap">
-            {profile.bio}
+            <LinkifiedText text={profile.bio} />
           </p>
         )}
 

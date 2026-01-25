@@ -24,6 +24,7 @@ import Callback from "./pages/Callback";
 import GoogleCallback from "./pages/GoogleCallback";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
+import SearchResults from "./pages/SearchResults";
 import { useAuth } from "./hooks/useAuth";
 
 const queryClient = new QueryClient();
@@ -69,6 +70,8 @@ function AppRoutes() {
         <Route path="/bestanden/preview/:fileId" element={<FilePreview />} />
         <Route path="/notities" element={<Notities />} />
         <Route path="/ontdekken" element={<Ontdekken />} />
+        <Route path="/zoeken" element={<SearchResults />} />
+        <Route path="/hashtag/:hashtag" element={<SearchResults />} />
         <Route path="/meldingen" element={<Meldingen />} />
         <Route path="/account" element={<Account />} />
         <Route path="/profiel/:username" element={<UserProfile />} />
