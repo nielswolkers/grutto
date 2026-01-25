@@ -6,8 +6,9 @@ interface LinkifiedTextProps {
   className?: string;
 }
 
-// Regex to match URLs and @mentions
-const URL_REGEX = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])|(?:www\.[^\s<]+[^<.,:;"')\]\s])/gi;
+// Regex to match URLs (including without protocol) and @mentions
+// Matches: https://..., http://..., www..., or domain.extension patterns
+const URL_REGEX = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])|(www\.[^\s<]+[^<.,:;"')\]\s])|([a-zA-Z0-9][-a-zA-Z0-9]*\.(com|org|net|edu|gov|io|co|nl|de|uk|info|biz|app|dev|ai|tech|me|tv|cc|us|ca|fr|es|it|au|jp|kr|cn|ru|in|br|mx|za|ng|ke|gh|eg|sa)[^\s<]*[^<.,:;"')\]\s])/gi;
 const MENTION_REGEX = /@([a-zA-Z0-9_]+)/g;
 
 export function LinkifiedText({ text, className = "" }: LinkifiedTextProps) {
@@ -16,8 +17,8 @@ export function LinkifiedText({ text, className = "" }: LinkifiedTextProps) {
   const elements: React.ReactNode[] = [];
   let lastIndex = 0;
   
-  // Combined regex for both URLs and mentions
-  const combinedRegex = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])|(www\.[^\s<]+[^<.,:;"')\]\s])|(@[a-zA-Z0-9_]+)/gi;
+  // Combined regex for URLs (with or without protocol) and @mentions
+  const combinedRegex = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])|(www\.[^\s<]+[^<.,:;"')\]\s])|([a-zA-Z0-9][-a-zA-Z0-9]*\.(com|org|net|edu|gov|io|co|nl|de|uk|info|biz|app|dev|ai|tech|me|tv|cc|us|ca|fr|es|it|au|jp|kr|cn|ru|in|br|mx|za|ng|ke|gh|eg|sa)[^\s<]*[^<.,:;"')\]\s])|(@[a-zA-Z0-9_]+)/gi;
   
   let match: RegExpExecArray | null;
   combinedRegex.lastIndex = 0;

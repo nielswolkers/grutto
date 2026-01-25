@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -6,6 +7,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Check } from "lucide-react";
 import { format } from "date-fns";
 import { nl } from "date-fns/locale";
+
+interface PollCreator {
+  user_id: string;
+  username: string;
+  full_name: string;
+  display_name: string | null;
+  avatar_url: string | null;
+}
 
 interface Poll {
   id: string;
@@ -38,9 +47,11 @@ interface PollCardProps {
 
 export function PollCard({ poll, onVote }: PollCardProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [voting, setVoting] = useState(false);
   const [localPoll, setLocalPoll] = useState(poll);
+  const [creator, setCreator] = useState<PollCreator | null>(null);
 
   useEffect(() => {
     // Check if user already voted
@@ -49,7 +60,19 @@ export function PollCard({ poll, onVote }: PollCardProps) {
       const votedOption = poll.options.find(o => o.votes.some(v => v.id === userVote.id));
       setSelectedOption(votedOption?.id || null);
     }
+    
+    // Load creator profile
+    loadCreator();
   }, [poll, user]);
+
+  const loadCreator = async () => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("user_id, username, full_name, display_name, avatar_url")
+      .eq("user_id", poll.created_by)
+      .single();
+    if (data) setCreator(data);
+  };
 
   const totalVotes = localPoll.options.reduce((acc, opt) => acc + opt.votes.length, 0);
 
@@ -97,9 +120,32 @@ export function PollCard({ poll, onVote }: PollCardProps) {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
+  const displayName = creator?.display_name || creator?.full_name || "Onbekend";
+
   return (
-    <Card className="bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/50 dark:border-emerald-800/30">
+    <Card className="bg-background border overflow-hidden">
       <CardContent className="p-4">
+        {/* Creator header - same as regular post */}
+        <div className="flex items-center gap-3 mb-4">
+          <button
+            onClick={() => creator?.username && navigate(`/profiel/${creator.username}`)}
+            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+          >
+            <Avatar className="w-12 h-12 bg-background">
+              {creator?.avatar_url && <AvatarImage src={creator.avatar_url} className="object-cover" />}
+              <AvatarFallback className="bg-muted text-foreground">
+                {getInitials(displayName)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="text-left">
+              <p className="font-semibold">{displayName}</p>
+              <p className="text-sm text-muted-foreground">
+                @{creator?.username} • {format(new Date(localPoll.created_at), "HH:mm", { locale: nl })}
+              </p>
+            </div>
+          </button>
+        </div>
+        
         <h3 className="font-semibold text-lg mb-4">{localPoll.question}</h3>
         
         <div className="space-y-3">
@@ -122,7 +168,7 @@ export function PollCard({ poll, onVote }: PollCardProps) {
                   <div className="flex items-center gap-3 mb-1">
                     <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
                       isSelected 
-                        ? 'border-emerald-500 bg-emerald-500 text-white' 
+                        ? 'border-primary bg-primary text-primary-foreground' 
                         : 'border-muted-foreground/30'
                     }`}>
                       {isSelected && <Check className="w-4 h-4" />}
@@ -155,7 +201,7 @@ export function PollCard({ poll, onVote }: PollCardProps) {
                   <div className="relative h-2 bg-muted/50 rounded-full overflow-hidden ml-9">
                     <div 
                       className={`absolute inset-y-0 left-0 rounded-full transition-all duration-300 ${
-                        isWinning ? 'bg-emerald-500' : 'bg-emerald-400/60'
+                        isWinning ? 'bg-primary' : 'bg-primary/60'
                       }`}
                       style={{ width: `${percentage}%` }}
                     />
@@ -167,7 +213,6 @@ export function PollCard({ poll, onVote }: PollCardProps) {
 
         <div className="flex items-center justify-between mt-4 text-sm text-muted-foreground">
           <span>{totalVotes} {totalVotes === 1 ? 'stem' : 'stemmen'}</span>
-          <span>{format(new Date(localPoll.created_at), "HH:mm", { locale: nl })}</span>
         </div>
       </CardContent>
     </Card>

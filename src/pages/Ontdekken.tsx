@@ -92,6 +92,7 @@ interface StudyGroup {
   avatar_url: string | null;
   owner_id: string;
   is_public?: boolean;
+  member_count?: number;
 }
 
 type SearchResultType = 
@@ -133,6 +134,7 @@ export default function Ontdekken() {
 
   // Group membership check
   const [myGroupIds, setMyGroupIds] = useState<Set<string>>(new Set());
+  const [myPublicGroups, setMyPublicGroups] = useState<StudyGroup[]>([]);
   const [requestingJoin, setRequestingJoin] = useState<string | null>(null);
 
   const isUserVerified = (userId: string) => verifiedUserIds.includes(userId);
@@ -167,7 +169,7 @@ export default function Ontdekken() {
     // Get groups where user is owner
     const { data: ownedGroups } = await supabase
       .from("study_groups")
-      .select("id")
+      .select("id, name, avatar_url, owner_id, is_public")
       .eq("owner_id", user.id);
 
     // Get groups where user is a member
@@ -181,6 +183,32 @@ export default function Ontdekken() {
     ownedGroups?.forEach(g => ids.add(g.id));
     memberGroups?.forEach(m => ids.add(m.group_id));
     setMyGroupIds(ids);
+    
+    // Load full details for public groups the user is member of
+    const allGroupIds = Array.from(ids);
+    if (allGroupIds.length > 0) {
+      const { data: publicGroupsData } = await supabase
+        .from("study_groups")
+        .select("id, name, avatar_url, owner_id, is_public")
+        .in("id", allGroupIds)
+        .eq("is_public", true);
+      
+      // Get member counts
+      const enrichedGroups: StudyGroup[] = [];
+      for (const group of publicGroupsData || []) {
+        const { count } = await supabase
+          .from("group_members")
+          .select("*", { count: 'exact', head: true })
+          .eq("group_id", group.id)
+          .eq("status", "accepted");
+        
+        enrichedGroups.push({
+          ...group,
+          member_count: (count || 0) + 1
+        });
+      }
+      setMyPublicGroups(enrichedGroups);
+    }
   };
 
   const loadMyProfile = async () => {
@@ -632,19 +660,19 @@ export default function Ontdekken() {
               ) : searchResults.length === 0 ? (
                 <p className="text-center text-muted-foreground py-4">Geen resultaten gevonden</p>
               ) : (
-                <ScrollArea className="max-h-80">
-                  <div className="space-y-1">
+                <ScrollArea className={searchResults.length > 6 ? "h-80" : ""}>
+                  <div className="space-y-1" style={{ maxHeight: searchResults.length <= 6 ? 'auto' : undefined }}>
                     {searchResults.map((result, index) => {
                       if (result.type === 'profile') {
                         const p = result.data;
                         return (
-                          <button
+                          <div
                             key={`profile-${p.user_id}`}
+                            className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors cursor-pointer"
                             onClick={() => {
                               navigate(`/profiel/${p.username}`);
                               setSearchQuery("");
                             }}
-                            className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors"
                           >
                             <Avatar className="w-10 h-10">
                               {p.avatar_url && <AvatarImage src={p.avatar_url} className="object-cover" />}
@@ -657,8 +685,19 @@ export default function Ontdekken() {
                               </p>
                               <p className="text-sm text-muted-foreground">@{p.username}</p>
                             </div>
-                            <User className="w-4 h-4 text-muted-foreground" />
-                          </button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="rounded-full text-xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/profiel/${p.username}`);
+                                setSearchQuery("");
+                              }}
+                            >
+                              Bekijk
+                            </Button>
+                          </div>
                         );
                       }
 
@@ -680,7 +719,7 @@ export default function Ontdekken() {
                               setSearchQuery("");
                             }}
                           >
-                            <Avatar className="w-12.5 h-12.5 bg-background" style={{ width: '3.125rem', height: '3.125rem' }}>
+                            <Avatar className="w-10 h-10 bg-background">
                               {g.avatar_url && <AvatarImage src={g.avatar_url} className="object-cover" />}
                               <AvatarFallback className="bg-background text-primary"><Users className="w-5 h-5" /></AvatarFallback>
                             </Avatar>
@@ -689,35 +728,24 @@ export default function Ontdekken() {
                                 {g.name}
                                 {isGroupVerified(g.id) && <VerifiedBadge />}
                               </p>
-                              <p className="text-sm text-muted-foreground">Studiegroep</p>
+                              <p className="text-sm text-muted-foreground">Community</p>
                             </div>
-                            {isMember || isOwner ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="rounded-full text-xs"
-                                onClick={(e) => {
-                                  e.stopPropagation();
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="rounded-full text-xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isMember || isOwner) {
                                   navigate("/studie");
-                                  setSearchQuery("");
-                                }}
-                              >
-                                Bekijk
-                              </Button>
-                            ) : (
-                              <Button
-                                size="sm"
-                                className="rounded-full text-xs gap-1"
-                                onClick={(e) => {
-                                  e.stopPropagation();
+                                } else {
                                   navigate(`/groep/${g.id}`);
-                                  setSearchQuery("");
-                                }}
-                              >
-                                <UserPlus className="w-3 h-3" />
-                                Bekijk
-                              </Button>
-                            )}
+                                }
+                                setSearchQuery("");
+                              }}
+                            >
+                              Bekijk
+                            </Button>
                           </div>
                         );
                       }
@@ -754,6 +782,34 @@ export default function Ontdekken() {
           </Card>
         )}
       </div>
+
+      {/* My Public Communities Section */}
+      {myPublicGroups.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold mb-3">Mijn Communities</h2>
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {myPublicGroups.map((group) => (
+              <button
+                key={group.id}
+                onClick={() => navigate("/studie")}
+                className="flex items-center gap-3 p-3 rounded-xl bg-card border hover:shadow-md transition-shadow min-w-[200px]"
+              >
+                <Avatar className="w-10 h-10 bg-background">
+                  {group.avatar_url && <AvatarImage src={group.avatar_url} className="object-cover" />}
+                  <AvatarFallback className="bg-background text-primary"><Users className="w-5 h-5" /></AvatarFallback>
+                </Avatar>
+                <div className="text-left">
+                  <p className="font-medium flex items-center gap-1">
+                    {group.name}
+                    {isGroupVerified(group.id) && <VerifiedBadge className="w-4 h-4" />}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{group.member_count} leden</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Create Publication (like LinkedIn) */}
       {user && (

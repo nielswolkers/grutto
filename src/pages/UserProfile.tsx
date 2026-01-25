@@ -197,7 +197,7 @@ export default function UserProfile() {
       </Button>
 
       {/* Banner */}
-      <div className="relative h-48 rounded-2xl overflow-hidden mb-20 bg-gradient-to-br from-primary/20 to-primary/5">
+      <div className="relative h-48 rounded-2xl overflow-hidden bg-gradient-to-br from-primary/20 to-primary/5">
         {profile.banner_url && (
           <img
             src={profile.banner_url}
@@ -205,11 +205,16 @@ export default function UserProfile() {
             className="w-full h-full object-cover"
           />
         )}
+        
+        {/* Group Affiliations - positioned in bottom right of banner with padding */}
+        <div className="absolute bottom-3 right-3 z-10">
+          <UserGroupAffiliations userId={profile.user_id} />
+        </div>
       </div>
       
-      {/* Avatar - positioned exactly halfway on banner */}
-      <div className="absolute left-8" style={{ top: 'calc(12rem - 4.375rem)', zIndex: 10 }}>
-        <Avatar className="border-4 border-background shadow-xl ring-4 ring-background bg-background" style={{ width: '8.75rem', height: '8.75rem' }}>
+      {/* Avatar - positioned exactly halfway on banner (same as study groups) */}
+      <div className="relative flex justify-start px-8" style={{ marginTop: '-3.9375rem', zIndex: 10 }}>
+        <Avatar className="border-4 border-background shadow-xl ring-4 ring-background bg-background" style={{ width: '7.875rem', height: '7.875rem' }}>
           {profile.avatar_url ? (
             <AvatarImage src={profile.avatar_url} alt={displayName} className="object-cover" />
           ) : null}
@@ -219,8 +224,8 @@ export default function UserProfile() {
         </Avatar>
       </div>
 
-      {/* Profile Info */}
-      <div className="px-2">
+      {/* Profile Info - decreased vertical distance */}
+      <div className="px-2 mt-2">
         <div className="flex items-start justify-between mb-4">
           <div>
             <h1 className="text-2xl font-bold inline-flex items-center">
@@ -260,11 +265,6 @@ export default function UserProfile() {
               )}
             </Button>
           )}
-        </div>
-
-        {/* Group Affiliations - show max 2 public groups where user is admin */}
-        <div className="absolute right-4 top-0">
-          <UserGroupAffiliations userId={profile.user_id} />
         </div>
 
         {/* Follow stats */}

@@ -27,6 +27,7 @@ export function PostReactions({ messageId, compact = false }: PostReactionsProps
   const { user } = useAuth();
   const [reactions, setReactions] = useState<Reaction[]>([]);
   const [loading, setLoading] = useState(false);
+  const [userReactionEmoji, setUserReactionEmoji] = useState<string | null>(null);
 
   useEffect(() => {
     loadReactions();
@@ -43,12 +44,21 @@ export function PostReactions({ messageId, compact = false }: PostReactionsProps
 
       // Group by emoji
       const emojiMap = new Map<string, { count: number; users: string[] }>();
+      let userEmoji: string | null = null;
+      
       data.forEach(reaction => {
         const existing = emojiMap.get(reaction.emoji) || { count: 0, users: [] };
         existing.count++;
         existing.users.push(reaction.user_id);
         emojiMap.set(reaction.emoji, existing);
+        
+        // Track user's existing reaction
+        if (reaction.user_id === user?.id) {
+          userEmoji = reaction.emoji;
+        }
       });
+
+      setUserReactionEmoji(userEmoji);
 
       const reactionList: Reaction[] = [];
       emojiMap.forEach((value, emoji) => {
@@ -76,20 +86,31 @@ export function PostReactions({ messageId, compact = false }: PostReactionsProps
       const existingReaction = reactions.find(r => r.emoji === emoji && r.hasReacted);
       
       if (existingReaction) {
-        // Remove reaction
+        // Remove reaction if clicking the same emoji
         await supabase
           .from("post_reactions")
           .delete()
           .eq("message_id", messageId)
           .eq("user_id", user.id)
           .eq("emoji", emoji);
+        setUserReactionEmoji(null);
       } else {
-        // Add reaction
+        // User already has a different reaction - delete it first (only 1 reaction allowed)
+        if (userReactionEmoji) {
+          await supabase
+            .from("post_reactions")
+            .delete()
+            .eq("message_id", messageId)
+            .eq("user_id", user.id);
+        }
+        
+        // Add new reaction
         await supabase.from("post_reactions").insert({
           message_id: messageId,
           user_id: user.id,
           emoji,
         });
+        setUserReactionEmoji(emoji);
       }
 
       await loadReactions();
@@ -139,14 +160,15 @@ export function PostReactions({ messageId, compact = false }: PostReactionsProps
           <div className="flex gap-1">
             {EMOJI_OPTIONS.map((emoji) => {
               const existing = reactions.find(r => r.emoji === emoji);
+              const isSelected = userReactionEmoji === emoji;
               return (
                 <button
                   key={emoji}
                   onClick={() => toggleReaction(emoji)}
                   disabled={loading}
                   className={`w-8 h-8 rounded flex items-center justify-center text-lg transition-colors ${
-                    existing?.hasReacted
-                      ? 'bg-primary/10'
+                    isSelected
+                      ? 'bg-primary/10 ring-2 ring-primary/30'
                       : 'hover:bg-muted'
                   }`}
                 >

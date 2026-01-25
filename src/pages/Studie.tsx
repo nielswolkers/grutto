@@ -967,7 +967,8 @@ export default function Studie() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-3xl font-bold text-foreground">{selectedGroup.name}</h1>
-              {verifiedGroupIds.includes(selectedGroup.id) && <VerifiedBadge />}
+              {/* Only show verified badge for PUBLIC groups */}
+              {selectedGroup.is_public && verifiedGroupIds.includes(selectedGroup.id) && <VerifiedBadge />}
               {!selectedGroup.is_public && <Lock className="w-5 h-5 text-muted-foreground" />}
             </div>
             <p className="text-muted-foreground">
@@ -1184,7 +1185,8 @@ export default function Studie() {
           <div className="flex bg-muted rounded-lg p-1 gap-0.5">
             {[
               { value: 'posts', label: 'Posts', icon: Newspaper },
-              { value: 'members', label: 'Leden', icon: Users },
+              // Only show Leden tab for private groups OR if user is admin in public groups
+              ...((selectedGroup.is_public && !isOwner) ? [] : [{ value: 'members', label: 'Leden', icon: Users }]),
               { value: 'materials', label: 'Materiaal', icon: FolderOpen },
             ].map((tab) => (
               <button 
@@ -1201,6 +1203,47 @@ export default function Studie() {
               </button>
             ))}
           </div>
+          
+          {/* Leave Group button for non-owners */}
+          {!isOwner && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" className="rounded-full text-destructive hover:text-destructive">
+                  Verlaat groep
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Groep verlaten?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Weet je zeker dat je "{selectedGroup.name}" wilt verlaten? Je kunt later weer lid worden.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annuleren</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={async () => {
+                      try {
+                        await supabase
+                          .from("group_members")
+                          .delete()
+                          .eq("group_id", selectedGroup.id)
+                          .eq("user_id", user.id);
+                        toast.success("Je hebt de groep verlaten");
+                        setSelectedGroup(null);
+                        loadGroups();
+                      } catch (error) {
+                        toast.error("Kon groep niet verlaten");
+                      }
+                    }}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Verlaten
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
 
         {/* Tab Contents */}
@@ -1576,6 +1619,7 @@ export default function Studie() {
                     <div>
                       <h3 className="font-semibold text-foreground flex items-center gap-1">
                         {group.name}
+                        {/* Only show verified badge for PUBLIC groups */}
                         {group.is_public && verifiedGroupIds.includes(group.id) && <VerifiedBadge className="w-4 h-4" />}
                         {!group.is_public && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
                       </h3>
