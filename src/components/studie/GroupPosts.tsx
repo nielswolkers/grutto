@@ -569,7 +569,7 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
   const canPost = !isPublicGroup || isAdmin;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-[80%] mx-auto">
       {/* Create Post - only show if user can post */}
       {user && canPost && (
         <Card>

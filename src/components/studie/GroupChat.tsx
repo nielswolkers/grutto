@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { LinkifiedText, extractMentions } from "@/components/LinkifiedText";
 import { Send, Paperclip, Smile, FileText, CheckSquare, X } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -55,11 +56,12 @@ interface Task {
 
 interface GroupChatProps {
   groupId: string;
+  groupName?: string;
 }
 
 const EMOJI_LIST = ["😀", "😂", "😍", "🎉", "👍", "👎", "❤️", "🔥", "✨", "💪", "📚", "✅", "❌", "🤔", "💡"];
 
-export function GroupChat({ groupId }: GroupChatProps) {
+export function GroupChat({ groupId, groupName = "een Community" }: GroupChatProps) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -208,6 +210,28 @@ export function GroupChat({ groupId }: GroupChatProps) {
 
       if (error) throw error;
 
+      // Handle @mentions - send notifications
+      const mentions = extractMentions(newMessage);
+      if (mentions.length > 0) {
+        // Get user IDs from usernames
+        const { data: mentionedProfiles } = await supabase
+          .from("profiles")
+          .select("user_id, username")
+          .in("username", mentions);
+
+        // Send notifications to mentioned users
+        for (const profile of mentionedProfiles || []) {
+          if (profile.user_id !== user.id) {
+            await supabase.from("notifications").insert({
+              recipient_id: profile.user_id,
+              sender_id: user.id,
+              type: "mention",
+              message: `heeft je benoemd in een gesprek in ${groupName}`,
+            });
+          }
+        }
+      }
+
       setNewMessage("");
       setSelectedFile(null);
       setSelectedTask(null);
@@ -289,7 +313,9 @@ export function GroupChat({ groupId }: GroupChatProps) {
                     <div className={`rounded-2xl p-3 ${isOwn ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                       {/* Text content */}
                       {message.content && (
-                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                        <p className="text-sm whitespace-pre-wrap">
+                          <LinkifiedText text={message.content} />
+                        </p>
                       )}
 
                       {/* File attachment */}

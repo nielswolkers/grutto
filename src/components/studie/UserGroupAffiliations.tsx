@@ -54,13 +54,13 @@ export function UserGroupAffiliations({ userId }: UserGroupAffiliationsProps) {
         return;
       }
 
-      // Get group details for public groups only
+      // Get group details for public groups only - LIMIT TO 1
       const { data: groups } = await supabase
         .from("study_groups")
         .select("id, name, avatar_url")
         .in("id", uniqueGroupIds)
         .eq("is_public", true)
-        .limit(2);
+        .limit(1);
 
       setAffiliations(groups || []);
     } catch (error) {
@@ -73,27 +73,30 @@ export function UserGroupAffiliations({ userId }: UserGroupAffiliationsProps) {
   if (loading || affiliations.length === 0) return null;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1">
       {affiliations.map((group) => (
         <button
           key={group.id}
-          onClick={() => navigate(`/groep/${group.id}`)}
-          className="flex items-center gap-2 w-full p-2 rounded-lg hover:bg-muted transition-colors text-left"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/groep/${group.id}`);
+          }}
+          className="flex items-center gap-2 p-2 rounded-lg bg-background/90 backdrop-blur-sm shadow-sm hover:bg-background transition-colors text-left"
         >
-          <Avatar className="w-8 h-8 bg-background">
+          <Avatar className="w-7 h-7 bg-background">
             {group.avatar_url ? (
               <AvatarImage src={group.avatar_url} className="object-cover" />
             ) : null}
             <AvatarFallback className="bg-background text-primary text-xs">
-              <Users className="w-4 h-4" />
+              <Users className="w-3.5 h-3.5" />
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate flex items-center gap-1">
+            <p className="text-xs font-medium truncate flex items-center gap-1">
               {group.name}
-              {verifiedGroupIds.includes(group.id) && <VerifiedBadge className="w-4 h-4" />}
+              {verifiedGroupIds.includes(group.id) && <VerifiedBadge className="w-3.5 h-3.5" />}
             </p>
-            <p className="text-xs text-muted-foreground">Community • Beheerder</p>
+            <p className="text-[10px] text-muted-foreground">Community beheerder</p>
           </div>
         </button>
       ))}

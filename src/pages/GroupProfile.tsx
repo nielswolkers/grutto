@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { LinkifiedText } from "@/components/LinkifiedText";
 import { useVerifiedGroups } from "@/hooks/useVerifiedStatus";
-import { ChevronLeft, Users, Calendar, UserPlus, Check, Lock } from "lucide-react";
+import { ChevronLeft, Users, Calendar, Check, Lock } from "lucide-react";
 import { format } from "date-fns";
 import { nl } from "date-fns/locale";
 import { toast } from "sonner";
@@ -23,6 +23,66 @@ interface GroupProfileData {
   created_at: string;
 }
 
+// Function to extract dominant color from image (simplified - uses first pixel area)
+function extractDominantColor(imageUrl: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve('hsl(var(--primary))');
+          return;
+        }
+        
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+        
+        // Sample multiple points and find the most vibrant color
+        const samplePoints = [
+          [Math.floor(img.width * 0.25), Math.floor(img.height * 0.25)],
+          [Math.floor(img.width * 0.75), Math.floor(img.height * 0.25)],
+          [Math.floor(img.width * 0.5), Math.floor(img.height * 0.5)],
+        ];
+        
+        let bestColor = { r: 0, g: 0, b: 0, saturation: 0 };
+        
+        for (const [x, y] of samplePoints) {
+          const data = ctx.getImageData(x, y, 1, 1).data;
+          const r = data[0], g = data[1], b = data[2];
+          
+          // Skip white/near-white colors
+          if (r > 240 && g > 240 && b > 240) continue;
+          // Skip very dark colors
+          if (r < 20 && g < 20 && b < 20) continue;
+          
+          // Calculate saturation
+          const max = Math.max(r, g, b);
+          const min = Math.min(r, g, b);
+          const saturation = max === 0 ? 0 : (max - min) / max;
+          
+          if (saturation > bestColor.saturation) {
+            bestColor = { r, g, b, saturation };
+          }
+        }
+        
+        if (bestColor.saturation > 0.1) {
+          resolve(`rgb(${bestColor.r}, ${bestColor.g}, ${bestColor.b})`);
+        } else {
+          resolve('hsl(var(--primary))');
+        }
+      } catch {
+        resolve('hsl(var(--primary))');
+      }
+    };
+    img.onerror = () => resolve('hsl(var(--primary))');
+    img.src = imageUrl;
+  });
+}
+
 export default function GroupProfile() {
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
@@ -32,6 +92,7 @@ export default function GroupProfile() {
   const [memberCount, setMemberCount] = useState(0);
   const [isMember, setIsMember] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [buttonColor, setButtonColor] = useState('hsl(var(--primary))');
   const { verifiedGroupIds } = useVerifiedGroups();
 
   useEffect(() => {
@@ -50,6 +111,12 @@ export default function GroupProfile() {
 
       if (error) throw error;
       setGroup(data);
+
+      // Extract color from avatar if available
+      if (data.avatar_url) {
+        const color = await extractDominantColor(data.avatar_url);
+        setButtonColor(color);
+      }
 
       // Get member count (accepted members + owner)
       const { count } = await supabase
@@ -100,7 +167,7 @@ export default function GroupProfile() {
       });
 
       setIsMember(true);
-      toast.success("Je bent nu lid van deze groep!");
+      toast.success("Je bent nu lid van deze Community!");
       navigate("/studie");
     } catch (error) {
       console.error("Join error:", error);
@@ -122,8 +189,8 @@ export default function GroupProfile() {
     return (
       <div className="w-full text-center py-12">
         <Users className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-        <h2 className="text-xl font-semibold mb-2">Groep niet gevonden</h2>
-        <p className="text-muted-foreground mb-4">Deze groep bestaat niet of is privé</p>
+        <h2 className="text-xl font-semibold mb-2">Community niet gevonden</h2>
+        <p className="text-muted-foreground mb-4">Deze Community bestaat niet of is privé</p>
         <Button variant="outline" onClick={() => navigate(-1)} className="rounded-full">
           Terug
         </Button>
@@ -137,7 +204,7 @@ export default function GroupProfile() {
       <div className="w-full text-center py-12">
         <Check className="w-16 h-16 mx-auto text-green-500 mb-4" />
         <h2 className="text-xl font-semibold mb-2">Je bent al lid!</h2>
-        <p className="text-muted-foreground mb-4">Ga naar Studie om de groep te bekijken</p>
+        <p className="text-muted-foreground mb-4">Ga naar Studie om de Community te bekijken</p>
         <Button onClick={() => navigate("/studie")} className="rounded-full">
           Naar Studie
         </Button>
@@ -185,7 +252,7 @@ export default function GroupProfile() {
           <div>
             <h1 className="text-2xl font-bold inline-flex items-center gap-2">
               {group.name}
-              {verifiedGroupIds.includes(group.id) && <VerifiedBadge />}
+              {group.is_public && verifiedGroupIds.includes(group.id) && <VerifiedBadge />}
               {!group.is_public && <Lock className="w-5 h-5 text-muted-foreground" />}
             </h1>
             <p className="text-muted-foreground">{memberCount} leden</p>
@@ -194,14 +261,14 @@ export default function GroupProfile() {
           <Button
             onClick={joinGroup}
             disabled={joining}
-            className="rounded-full gap-2"
+            className="rounded-full"
+            style={{ backgroundColor: buttonColor, borderColor: buttonColor }}
           >
             {joining ? (
               <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
             ) : (
-              <UserPlus className="w-4 h-4" />
+              "Lid worden"
             )}
-            Lid worden
           </Button>
         </div>
 
