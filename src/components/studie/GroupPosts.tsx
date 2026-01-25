@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LinkifiedText } from "@/components/LinkifiedText";
+import { LinkifiedText, extractMentions } from "@/components/LinkifiedText";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { useVerifiedUsers } from "@/hooks/useVerifiedStatus";
 import { 
@@ -84,9 +84,11 @@ interface Profile {
 
 interface GroupPostsProps {
   groupId: string;
+  isPublicGroup?: boolean;
+  isAdmin?: boolean;
 }
 
-export function GroupPosts({ groupId }: GroupPostsProps) {
+export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: GroupPostsProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { verifiedUserIds } = useVerifiedUsers();
@@ -192,16 +194,16 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
           .select("user_id, username, full_name, display_name, avatar_url")
           .in("user_id", userIds);
 
-        // Get comment counts from publication_comments
+        // Get comment counts from group_message_comments
         const postIds = data.map(p => p.id);
         const { data: commentCounts } = await supabase
-          .from("publication_comments")
-          .select("publication_id")
-          .in("publication_id", postIds);
+          .from("group_message_comments")
+          .select("message_id")
+          .in("message_id", postIds);
 
         const countMap = new Map<string, number>();
         commentCounts?.forEach(c => {
-          countMap.set(c.publication_id, (countMap.get(c.publication_id) || 0) + 1);
+          countMap.set(c.message_id, (countMap.get(c.message_id) || 0) + 1);
         });
 
         const enriched = data.map(post => ({
@@ -229,9 +231,9 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
 
   const loadComments = async (postId: string) => {
     const { data } = await supabase
-      .from("publication_comments")
+      .from("group_message_comments")
       .select("*")
-      .eq("publication_id", postId)
+      .eq("message_id", postId)
       .order("created_at", { ascending: true });
 
     if (data && data.length > 0) {
@@ -273,9 +275,9 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
     setPostingComment(postId);
     try {
       const { error } = await supabase
-        .from("publication_comments")
+        .from("group_message_comments")
         .insert({
-          publication_id: postId,
+          message_id: postId,
           user_id: user.id,
           content,
         });
@@ -390,7 +392,7 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
       }
 
       // Create post with image and file data
-      const { error } = await supabase
+      const { data: postData, error } = await supabase
         .from("group_messages")
         .insert({
           group_id: groupId,
@@ -399,9 +401,40 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
           image_url: imageUrl,
           file_url: fileUrl,
           file_name: fileName,
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
+
+      // Handle @mentions - send notifications
+      const mentions = extractMentions(newContent);
+      if (mentions.length > 0) {
+        // Get user IDs from usernames
+        const { data: mentionedProfiles } = await supabase
+          .from("profiles")
+          .select("user_id, username")
+          .in("username", mentions);
+
+        // Get group name
+        const { data: groupData } = await supabase
+          .from("study_groups")
+          .select("name")
+          .eq("id", groupId)
+          .single();
+
+        // Send notifications
+        for (const profile of mentionedProfiles || []) {
+          if (profile.user_id !== user.id) {
+            await supabase.from("notifications").insert({
+              recipient_id: profile.user_id,
+              sender_id: user.id,
+              type: "mention",
+              message: `heeft je genoemd in een gesprek in ${groupData?.name || 'een studiegroep'}`,
+            });
+          }
+        }
+      }
 
       toast.success("Post geplaatst!");
       setNewContent("");
@@ -462,10 +495,13 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
     );
   }
 
+  // Determine if user can post (for public groups: only admins, for private groups: everyone)
+  const canPost = !isPublicGroup || isAdmin;
+
   return (
     <div className="space-y-4">
-      {/* Create Post */}
-      {user && (
+      {/* Create Post - only show if user can post */}
+      {user && canPost && (
         <Card>
           <CardContent className="p-4">
             <div className="flex gap-3">
@@ -733,7 +769,9 @@ export function GroupPosts({ groupId }: GroupPostsProps) {
                                 <VerifiedBadge className="w-4 h-4" />
                               )}
                             </p>
-                            <p className="text-sm">{comment.content}</p>
+                            <p className="text-sm">
+                              <LinkifiedText text={comment.content} />
+                            </p>
                             <p className="text-xs text-muted-foreground mt-1">
                               {formatDate(comment.created_at)}
                             </p>

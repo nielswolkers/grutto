@@ -319,6 +319,73 @@ export type Database = {
         }
         Relationships: []
       }
+      group_admin_requests: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          requester_id: string
+          responded_at: string | null
+          status: string
+          target_admin_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          requester_id: string
+          responded_at?: string | null
+          status?: string
+          target_admin_id: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          requester_id?: string
+          responded_at?: string | null
+          status?: string
+          target_admin_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_admin_requests_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "study_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_admins: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_admins_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "study_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       group_first_visits: {
         Row: {
           group_id: string
@@ -426,6 +493,41 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "study_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_message_comments: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          message_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          message_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          message_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_message_comments_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "group_messages"
             referencedColumns: ["id"]
           },
         ]

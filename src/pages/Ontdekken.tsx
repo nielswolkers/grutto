@@ -696,7 +696,8 @@ export default function Ontdekken() {
                                 size="sm"
                                 variant="outline"
                                 className="rounded-full text-xs"
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   navigate("/studie");
                                   setSearchQuery("");
                                 }}
@@ -707,15 +708,14 @@ export default function Ontdekken() {
                               <Button
                                 size="sm"
                                 className="rounded-full text-xs gap-1"
-                                disabled={requestingJoin === g.id}
-                                onClick={() => requestJoinGroup(g)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/groep/${g.id}`);
+                                  setSearchQuery("");
+                                }}
                               >
-                                {requestingJoin === g.id ? (
-                                  <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                  <UserPlus className="w-3 h-3" />
-                                )}
-                                Verzoek
+                                <UserPlus className="w-3 h-3" />
+                                Bekijk
                               </Button>
                             )}
                           </div>
