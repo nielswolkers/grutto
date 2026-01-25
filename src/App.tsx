@@ -69,7 +69,8 @@ function AppRoutes() {
         <Route path="/bestanden/folder/:folderId" element={<FolderView />} />
         <Route path="/bestanden/preview/:fileId" element={<FilePreview />} />
         <Route path="/notities" element={<Notities />} />
-        <Route path="/ontdekken" element={<Ontdekken />} />
+        <Route path="/ontdekken" element={<Navigate to="/communities" replace />} />
+        <Route path="/communities" element={<Ontdekken />} />
         <Route path="/zoeken" element={<SearchResults />} />
         <Route path="/hashtag/:hashtag" element={<SearchResults />} />
         <Route path="/meldingen" element={<Meldingen />} />

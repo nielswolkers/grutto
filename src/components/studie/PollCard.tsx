@@ -4,11 +4,38 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { useVerifiedUsers } from "@/hooks/useVerifiedStatus";
-import { Check, ChevronDown, ChevronUp } from "lucide-react";
+import { PostReactions } from "./PostReactions";
+import { Check, ChevronDown, ChevronUp, MoreHorizontal, Trash2, Edit, Pin, PinOff } from "lucide-react";
 import { format } from "date-fns";
 import { nl } from "date-fns/locale";
+import { toast } from "sonner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface PollCreator {
   user_id: string;
@@ -48,9 +75,10 @@ interface PollCardProps {
   poll: Poll;
   onVote?: () => void;
   isAdmin?: boolean;
+  onDelete?: () => void;
 }
 
-export function PollCard({ poll, onVote, isAdmin = false }: PollCardProps) {
+export function PollCard({ poll, onVote, isAdmin = false, onDelete }: PollCardProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { verifiedUserIds } = useVerifiedUsers();
@@ -59,6 +87,13 @@ export function PollCard({ poll, onVote, isAdmin = false }: PollCardProps) {
   const [localPoll, setLocalPoll] = useState(poll);
   const [creator, setCreator] = useState<PollCreator | null>(null);
   const [expandedVoters, setExpandedVoters] = useState<string | null>(null);
+  
+  // Edit/Delete state
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editQuestion, setEditQuestion] = useState(poll.question);
+  const [saving, setSaving] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     setLocalPoll(poll);
@@ -71,7 +106,6 @@ export function PollCard({ poll, onVote, isAdmin = false }: PollCardProps) {
       setSelectedOption(null);
     }
     
-    // Load creator profile
     loadCreator();
   }, [poll, user]);
 
@@ -128,18 +162,62 @@ export function PollCard({ poll, onVote, isAdmin = false }: PollCardProps) {
     }
   };
 
+  const handleEdit = async () => {
+    if (!editQuestion.trim()) return;
+    setSaving(true);
+    try {
+      await supabase
+        .from("polls")
+        .update({ question: editQuestion.trim() })
+        .eq("id", poll.id);
+      
+      setLocalPoll(prev => ({ ...prev, question: editQuestion.trim() }));
+      setShowEditDialog(false);
+      toast.success("Poll bijgewerkt");
+      onVote?.();
+    } catch (error) {
+      console.error("Edit poll error:", error);
+      toast.error("Kon poll niet bewerken");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      // Delete votes first
+      await supabase.from("poll_votes").delete().eq("poll_id", poll.id);
+      // Delete options
+      await supabase.from("poll_options").delete().eq("poll_id", poll.id);
+      // Delete poll
+      await supabase.from("polls").delete().eq("id", poll.id);
+      
+      toast.success("Poll verwijderd");
+      setShowDeleteDialog(false);
+      onDelete?.();
+      onVote?.();
+    } catch (error) {
+      console.error("Delete poll error:", error);
+      toast.error("Kon poll niet verwijderen");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
   const displayName = creator?.display_name || creator?.full_name || "Onbekend";
   const isCreatorVerified = creator ? verifiedUserIds.includes(creator.user_id) : false;
+  const canManage = isAdmin || poll.created_by === user?.id;
 
   return (
     <Card className="bg-card border overflow-hidden">
       <CardContent className="p-4">
-        {/* Creator header - same as regular post with verified badge */}
-        <div className="flex items-center gap-3 mb-4">
+        {/* Creator header with admin actions */}
+        <div className="flex items-start justify-between mb-4">
           <button
             onClick={() => creator?.username && navigate(`/profiel/${creator.username}`)}
             className="flex items-center gap-3 hover:opacity-80 transition-opacity"
@@ -160,6 +238,32 @@ export function PollCard({ poll, onVote, isAdmin = false }: PollCardProps) {
               </p>
             </div>
           </button>
+
+          {canManage && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full h-8 w-8">
+                  <MoreHorizontal className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => {
+                  setEditQuestion(localPoll.question);
+                  setShowEditDialog(true);
+                }}>
+                  <Edit className="w-4 h-4 mr-2" />
+                  Bewerken
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => setShowDeleteDialog(true)}
+                  className="text-destructive"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Verwijderen
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
         
         <h3 className="font-semibold text-lg mb-4">{localPoll.question}</h3>
@@ -258,10 +362,59 @@ export function PollCard({ poll, onVote, isAdmin = false }: PollCardProps) {
             })}
         </div>
 
-        <div className="flex items-center justify-between mt-4 text-sm text-muted-foreground">
+        {/* Emoji Reactions */}
+        <div className="mt-4 pt-3 border-t">
+          <PostReactions messageId={poll.id} />
+        </div>
+
+        <div className="flex items-center justify-between mt-3 text-sm text-muted-foreground">
           <span>{totalVotes} {totalVotes === 1 ? 'stem' : 'stemmen'}</span>
         </div>
       </CardContent>
+
+      {/* Edit Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Poll bewerken</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={editQuestion}
+            onChange={(e) => setEditQuestion(e.target.value)}
+            placeholder="Stel een vraag..."
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Annuleren
+            </Button>
+            <Button onClick={handleEdit} disabled={saving || !editQuestion.trim()}>
+              {saving ? "Opslaan..." : "Opslaan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Poll verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deze actie kan niet ongedaan worden gemaakt. Alle stemmen worden ook verwijderd.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Verwijderen..." : "Verwijderen"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
