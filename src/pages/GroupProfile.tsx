@@ -139,16 +139,77 @@ export default function GroupProfile() {
     );
   }
 
-  // Redirect to Studie page if already a member
+  // For members, show "Ga naar community" button instead of redirect
   if (isMember) {
     return (
-      <div className="w-full text-center py-12">
-        <Check className="w-16 h-16 mx-auto text-green-500 mb-4" />
-        <h2 className="text-xl font-semibold mb-2">Je bent al lid!</h2>
-        <p className="text-muted-foreground mb-4">Ga naar Studie om de Community te bekijken</p>
-        <Button onClick={() => navigate("/studie")} className="rounded-full">
-          Naar Studie
+      <div className="w-full relative">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate(-1)}
+          className="rounded-full mb-4"
+        >
+          <ChevronLeft className="w-5 h-5" />
         </Button>
+
+        {/* Banner */}
+        <div className="relative h-48 rounded-2xl overflow-hidden bg-gradient-to-br from-primary/20 to-primary/5">
+          {group.banner_url && (
+            <img
+              src={group.banner_url}
+              alt="Banner"
+              className="w-full h-full object-cover"
+            />
+          )}
+        </div>
+        
+        {/* Avatar */}
+        <div className="relative flex justify-start px-8" style={{ marginTop: '-3.9375rem' }}>
+          <Avatar className="border-4 border-background shadow-xl ring-4 ring-background bg-background" style={{ width: '7.875rem', height: '7.875rem' }}>
+            {group.avatar_url ? (
+              <AvatarImage src={group.avatar_url} alt={group.name} className="object-cover" />
+            ) : null}
+            <AvatarFallback className="text-4xl bg-background text-primary">
+              <Users className="w-12 h-12" />
+            </AvatarFallback>
+          </Avatar>
+        </div>
+
+        {/* Group Info */}
+        <div className="px-2 mt-4">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h1 className="text-2xl font-bold inline-flex items-center gap-2">
+                {group.name}
+                {group.is_public && verifiedGroupIds.includes(group.id) && <VerifiedBadge />}
+              </h1>
+              <p className="text-muted-foreground">{memberCount} leden</p>
+            </div>
+            
+            {/* Go to Community button */}
+            <Button
+              onClick={() => navigate("/studie")}
+              className="rounded-full"
+            >
+              Ga naar community
+            </Button>
+          </div>
+
+          {group.bio && (
+            <p className="text-foreground mb-6 whitespace-pre-wrap mt-4">
+              <LinkifiedText text={group.bio} />
+            </p>
+          )}
+
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-1">
+              <Calendar className="w-4 h-4" />
+              <span>
+                Opgericht {format(new Date(group.created_at), "MMMM yyyy", { locale: nl })}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

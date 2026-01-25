@@ -105,6 +105,7 @@ export default function Ontdekken() {
   const navigate = useNavigate();
   const { verifiedUserIds } = useVerifiedUsers();
   const { verifiedGroupIds } = useVerifiedGroups();
+  const [activeView, setActiveView] = useState<"mijn" | "ontdekken">("mijn");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResultType[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -135,6 +136,7 @@ export default function Ontdekken() {
   // Group membership check
   const [myGroupIds, setMyGroupIds] = useState<Set<string>>(new Set());
   const [myPublicGroups, setMyPublicGroups] = useState<StudyGroup[]>([]);
+  const [allPublicGroups, setAllPublicGroups] = useState<StudyGroup[]>([]);
   const [requestingJoin, setRequestingJoin] = useState<string | null>(null);
 
   const isUserVerified = (userId: string) => verifiedUserIds.includes(userId);
@@ -144,6 +146,7 @@ export default function Ontdekken() {
     loadPublications();
     loadMyProfile();
     loadMyGroups();
+    loadAllPublicGroups();
 
     const channel = supabase
       .channel("publications-realtime")
@@ -208,6 +211,33 @@ export default function Ontdekken() {
         });
       }
       setMyPublicGroups(enrichedGroups);
+    }
+  };
+
+  const loadAllPublicGroups = async () => {
+    const { data: allPublic } = await supabase
+      .from("study_groups")
+      .select("id, name, avatar_url, owner_id, is_public")
+      .eq("is_public", true)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (allPublic) {
+      // Get member counts
+      const enrichedGroups: StudyGroup[] = [];
+      for (const group of allPublic) {
+        const { count } = await supabase
+          .from("group_members")
+          .select("*", { count: 'exact', head: true })
+          .eq("group_id", group.id)
+          .eq("status", "accepted");
+        
+        enrichedGroups.push({
+          ...group,
+          member_count: (count || 0) + 1
+        });
+      }
+      setAllPublicGroups(enrichedGroups);
     }
   };
 
@@ -614,165 +644,214 @@ export default function Ontdekken() {
 
   return (
     <div className="w-full max-w-2xl mx-auto">
-      {/* Search Bar */}
-      <div className="sticky top-0 z-10 bg-background pb-4">
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-          <Input
-            placeholder="Zoek accounts, groepen en publicaties..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && searchQuery.length >= 2) {
-                // Show search results when pressing enter
-                search(searchQuery);
-              }
-            }}
-            className="pl-12 h-12 text-lg rounded-full bg-muted/50 border-none focus-visible:ring-2"
-          />
+      {/* Page Title */}
+      <h1 className="text-4xl font-bold mb-6">Communities</h1>
+
+      {/* Toggle - Mijn Communities / Ontdekken */}
+      <div className="flex justify-center mb-6">
+        <div className="inline-flex bg-muted rounded-full p-1" style={{ minWidth: '320px' }}>
+          <button
+            onClick={() => setActiveView("mijn")}
+            className={`flex-1 px-6 py-2 rounded-full text-sm font-medium transition-colors ${
+              activeView === "mijn" 
+                ? "bg-background shadow text-foreground" 
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Mijn Communities
+          </button>
+          <button
+            onClick={() => setActiveView("ontdekken")}
+            className={`flex-1 px-6 py-2 rounded-full text-sm font-medium transition-colors ${
+              activeView === "ontdekken" 
+                ? "bg-background shadow text-foreground" 
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Ontdekken
+          </button>
         </div>
-
-        {/* Search Results */}
-        {searchQuery.length >= 2 && (
-          <Card className="mt-2 shadow-lg">
-            <CardContent className="p-2">
-              {isSearching ? (
-                <div className="flex items-center justify-center py-4">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
-                </div>
-              ) : searchResults.length === 0 ? (
-                <p className="text-center text-muted-foreground py-4">Geen resultaten gevonden</p>
-              ) : (
-                <ScrollArea className={searchResults.length > 6 ? "h-80" : ""}>
-                  <div className="space-y-1" style={{ maxHeight: searchResults.length <= 6 ? 'auto' : undefined }}>
-                    {searchResults.map((result, index) => {
-                      if (result.type === 'profile') {
-                        const p = result.data;
-                        return (
-                          <div
-                            key={`profile-${p.user_id}`}
-                            className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors cursor-pointer"
-                            onClick={() => {
-                              navigate(`/profiel/${p.username}`);
-                              setSearchQuery("");
-                            }}
-                          >
-                            <Avatar className="w-10 h-10">
-                              {p.avatar_url && <AvatarImage src={p.avatar_url} className="object-cover" />}
-                              <AvatarFallback>{getInitials(p.display_name || p.full_name)}</AvatarFallback>
-                            </Avatar>
-                            <div className="text-left flex-1">
-                              <p className="font-medium flex items-center">
-                                {p.display_name || p.full_name}
-                                {isUserVerified(p.user_id) && <VerifiedBadge />}
-                              </p>
-                              <p className="text-sm text-muted-foreground">@{p.username}</p>
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="rounded-full text-xs"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/profiel/${p.username}`);
-                                setSearchQuery("");
-                              }}
-                            >
-                              Bekijk
-                            </Button>
-                          </div>
-                        );
-                      }
-
-                      if (result.type === 'group') {
-                        const g = result.data;
-                        const isMember = myGroupIds.has(g.id);
-                        const isOwner = g.owner_id === user?.id;
-                        
-                        return (
-                          <div
-                            key={`group-${g.id}`}
-                            className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors cursor-pointer"
-                            onClick={() => {
-                              if (isMember || isOwner) {
-                                navigate("/studie");
-                              } else {
-                                navigate(`/groep/${g.id}`);
-                              }
-                              setSearchQuery("");
-                            }}
-                          >
-                            <Avatar className="w-10 h-10 bg-background">
-                              {g.avatar_url && <AvatarImage src={g.avatar_url} className="object-cover" />}
-                              <AvatarFallback className="bg-background text-primary"><Users className="w-5 h-5" /></AvatarFallback>
-                            </Avatar>
-                            <div className="text-left flex-1">
-                              <p className="font-medium flex items-center">
-                                {g.name}
-                                {isGroupVerified(g.id) && <VerifiedBadge />}
-                              </p>
-                              <p className="text-sm text-muted-foreground">Community</p>
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="rounded-full text-xs"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (isMember || isOwner) {
-                                  navigate("/studie");
-                                } else {
-                                  navigate(`/groep/${g.id}`);
-                                }
-                                setSearchQuery("");
-                              }}
-                            >
-                              Bekijk
-                            </Button>
-                          </div>
-                        );
-                      }
-
-                      // Publications are not shown in inline search - only in search results page
-                      if (result.type === 'publication') {
-                        return null;
-                      }
-
-                      return null;
-                    })}
-                  </div>
-                </ScrollArea>
-              )}
-            </CardContent>
-          </Card>
-        )}
       </div>
 
-      {/* My Public Communities Section */}
-      {myPublicGroups.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-3">Mijn Communities</h2>
-          <div className="flex gap-3 overflow-x-auto pb-2">
-            {myPublicGroups.map((group) => (
-              <button
-                key={group.id}
-                onClick={() => navigate("/studie")}
-                className="flex items-center gap-3 p-3 rounded-xl bg-card border hover:shadow-md transition-shadow min-w-[200px]"
+      {activeView === "mijn" ? (
+        // My Communities View
+        <div className="space-y-4">
+          {myPublicGroups.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">Geen communities gevonden</p>
+              <p className="text-sm">Ontdek nieuwe communities om lid te worden!</p>
+              <Button 
+                variant="outline" 
+                className="mt-4 rounded-full"
+                onClick={() => setActiveView("ontdekken")}
               >
-                <Avatar className="w-10 h-10 bg-background">
-                  {group.avatar_url && <AvatarImage src={group.avatar_url} className="object-cover" />}
-                  <AvatarFallback className="bg-background text-primary"><Users className="w-5 h-5" /></AvatarFallback>
-                </Avatar>
-                <div className="text-left">
-                  <p className="font-medium flex items-center gap-1">
-                    {group.name}
-                    {isGroupVerified(group.id) && <VerifiedBadge className="w-4 h-4" />}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{group.member_count} leden</p>
-                </div>
-              </button>
-            ))}
+                Ontdekken
+              </Button>
+            </div>
+          ) : (
+            myPublicGroups.map((group) => (
+              <Card 
+                key={group.id}
+                className="cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => navigate("/studie")}
+              >
+                <CardContent className="p-4 flex items-center gap-4">
+                  <Avatar className="w-14 h-14 bg-background">
+                    {group.avatar_url && <AvatarImage src={group.avatar_url} className="object-cover" />}
+                    <AvatarFallback className="bg-background text-primary">
+                      <Users className="w-6 h-6" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <p className="font-semibold flex items-center gap-1">
+                      {group.name}
+                      {isGroupVerified(group.id) && <VerifiedBadge />}
+                    </p>
+                    <p className="text-sm text-muted-foreground">{group.member_count} leden</p>
+                  </div>
+                  <Button variant="outline" className="rounded-full">
+                    Bekijk
+                  </Button>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      ) : (
+        // Ontdekken View with search
+        <div className="space-y-4">
+          {/* Search Bar */}
+          <div className="sticky top-0 z-10 bg-background pb-4">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Input
+                placeholder="Zoek accounts, groepen en publicaties..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && searchQuery.length >= 2) {
+                    navigate(`/zoeken?q=${encodeURIComponent(searchQuery)}`);
+                  }
+                }}
+                className="pl-12 h-12 text-lg rounded-full bg-muted/50 border-none focus-visible:ring-2"
+              />
+            </div>
+
+            {/* Search Results */}
+            {searchQuery.length >= 2 && (
+              <Card className="mt-2 shadow-lg">
+                <CardContent className="p-2">
+                  {isSearching ? (
+                    <div className="flex items-center justify-center py-4">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
+                    </div>
+                  ) : searchResults.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-4">Geen resultaten gevonden</p>
+                  ) : (
+                    <ScrollArea className={searchResults.length > 6 ? "h-80" : ""}>
+                      <div className="space-y-1" style={{ maxHeight: searchResults.length <= 6 ? 'auto' : undefined }}>
+                        {searchResults.map((result) => {
+                          if (result.type === 'profile') {
+                            const p = result.data;
+                            return (
+                              <div
+                                key={`profile-${p.user_id}`}
+                                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors cursor-pointer"
+                                onClick={() => {
+                                  navigate(`/profiel/${p.username}`);
+                                  setSearchQuery("");
+                                }}
+                              >
+                                <Avatar className="w-10 h-10">
+                                  {p.avatar_url && <AvatarImage src={p.avatar_url} className="object-cover" />}
+                                  <AvatarFallback>{getInitials(p.display_name || p.full_name)}</AvatarFallback>
+                                </Avatar>
+                                <div className="text-left flex-1">
+                                  <p className="font-medium flex items-center">
+                                    {p.display_name || p.full_name}
+                                    {isUserVerified(p.user_id) && <VerifiedBadge />}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">@{p.username}</p>
+                                </div>
+                                <Button size="sm" variant="outline" className="rounded-full text-xs">
+                                  Bekijk
+                                </Button>
+                              </div>
+                            );
+                          }
+
+                          if (result.type === 'group') {
+                            const g = result.data;
+                            return (
+                              <div
+                                key={`group-${g.id}`}
+                                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted transition-colors cursor-pointer"
+                                onClick={() => {
+                                  navigate(`/groep/${g.id}`);
+                                  setSearchQuery("");
+                                }}
+                              >
+                                <Avatar className="w-10 h-10 bg-background">
+                                  {g.avatar_url && <AvatarImage src={g.avatar_url} className="object-cover" />}
+                                  <AvatarFallback className="bg-background text-primary"><Users className="w-5 h-5" /></AvatarFallback>
+                                </Avatar>
+                                <div className="text-left flex-1">
+                                  <p className="font-medium flex items-center">
+                                    {g.name}
+                                    {isGroupVerified(g.id) && <VerifiedBadge />}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">Community</p>
+                                </div>
+                                <Button size="sm" variant="outline" className="rounded-full text-xs">
+                                  Bekijk
+                                </Button>
+                              </div>
+                            );
+                          }
+
+                          return null;
+                        })}
+                      </div>
+                    </ScrollArea>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
+
+          {/* All Public Communities */}
+          <h2 className="text-lg font-semibold">Alle Communities</h2>
+          {allPublicGroups.filter(g => !myGroupIds.has(g.id)).length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">Geen nieuwe communities gevonden</p>
+          ) : (
+            allPublicGroups.filter(g => !myGroupIds.has(g.id)).map((group) => (
+              <Card 
+                key={group.id}
+                className="cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => navigate(`/groep/${group.id}`)}
+              >
+                <CardContent className="p-4 flex items-center gap-4">
+                  <Avatar className="w-14 h-14 bg-background">
+                    {group.avatar_url && <AvatarImage src={group.avatar_url} className="object-cover" />}
+                    <AvatarFallback className="bg-background text-primary">
+                      <Users className="w-6 h-6" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <p className="font-semibold flex items-center gap-1">
+                      {group.name}
+                      {isGroupVerified(group.id) && <VerifiedBadge />}
+                    </p>
+                    <p className="text-sm text-muted-foreground">{group.member_count} leden</p>
+                  </div>
+                  <Button variant="outline" className="rounded-full">
+                    Lid worden
+                  </Button>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       )}
 
