@@ -202,7 +202,7 @@ export default function SearchResults() {
   const hasNoResults = profiles.length === 0 && groups.length === 0 && publications.length === 0;
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
+    <div className="w-full">
       <div className="flex items-center gap-4 mb-6">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full">
           <ChevronLeft className="w-5 h-5" />
@@ -233,8 +233,7 @@ export default function SearchResults() {
           {/* Accounts Section */}
           {profiles.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                <User className="w-5 h-5" />
+              <h2 className="text-sm font-medium text-muted-foreground mb-3">
                 Accounts
               </h2>
               <div className="space-y-2">
@@ -269,8 +268,7 @@ export default function SearchResults() {
           {/* Communities Section */}
           {groups.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                <Users className="w-5 h-5" />
+              <h2 className="text-sm font-medium text-muted-foreground mb-3">
                 Communities
               </h2>
               <div className="space-y-2">
@@ -284,7 +282,7 @@ export default function SearchResults() {
                       className="cursor-pointer hover:shadow-md transition-shadow"
                       onClick={() => {
                         if (isMember || isOwner) {
-                          navigate("/studie");
+                          navigate("/communities");
                         } else {
                           navigate(`/groep/${g.id}`);
                         }
@@ -318,8 +316,7 @@ export default function SearchResults() {
           {/* Publications Section */}
           {publications.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                <FileText className="w-5 h-5" />
+              <h2 className="text-sm font-medium text-muted-foreground mb-3">
                 Publicaties
               </h2>
               <div className="space-y-4">
