@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -104,6 +104,7 @@ type SearchResultType =
 export default function Ontdekken() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { verifiedUserIds } = useVerifiedUsers();
   const { verifiedGroupIds } = useVerifiedGroups();
   const [activeView, setActiveView] = useState<"mijn" | "ontdekken">("mijn");
@@ -140,6 +141,9 @@ export default function Ontdekken() {
   const [allPublicGroups, setAllPublicGroups] = useState<StudyGroup[]>([]);
   const [requestingJoin, setRequestingJoin] = useState<string | null>(null);
   const [selectedCommunity, setSelectedCommunity] = useState<StudyGroup | null>(null);
+  const [pendingOpenCommunityId, setPendingOpenCommunityId] = useState<string | null>(
+    (location.state as any)?.openCommunityId || null
+  );
 
   const isUserVerified = (userId: string) => verifiedUserIds.includes(userId);
   const isGroupVerified = (groupId: string) => verifiedGroupIds.includes(groupId);
@@ -168,6 +172,19 @@ export default function Ontdekken() {
     };
   }, []);
 
+  // Handle navigation with openCommunityId state - auto-open the community
+  useEffect(() => {
+    if (pendingOpenCommunityId && myPublicGroups.length > 0) {
+      const communityToOpen = myPublicGroups.find(g => g.id === pendingOpenCommunityId);
+      if (communityToOpen) {
+        setSelectedCommunity(communityToOpen);
+        setPendingOpenCommunityId(null);
+        // Clear the state from history
+        window.history.replaceState({}, document.title);
+      }
+    }
+  }, [pendingOpenCommunityId, myPublicGroups]);
+
   const loadMyGroups = async () => {
     if (!user) return;
     
@@ -189,18 +206,17 @@ export default function Ontdekken() {
     memberGroups?.forEach(m => ids.add(m.group_id));
     setMyGroupIds(ids);
     
-    // Load full details for public groups the user is member of
+    // Load full details for ALL groups the user is member of (both public and private)
     const allGroupIds = Array.from(ids);
     if (allGroupIds.length > 0) {
-      const { data: publicGroupsData } = await supabase
+      const { data: allGroupsData } = await supabase
         .from("study_groups")
         .select("id, name, avatar_url, owner_id, is_public")
-        .in("id", allGroupIds)
-        .eq("is_public", true);
+        .in("id", allGroupIds);
       
       // Get member counts
       const enrichedGroups: StudyGroup[] = [];
-      for (const group of publicGroupsData || []) {
+      for (const group of allGroupsData || []) {
         const { count } = await supabase
           .from("group_members")
           .select("*", { count: 'exact', head: true })

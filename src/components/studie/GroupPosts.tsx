@@ -23,7 +23,12 @@ import {
   MessageCircle,
   ChevronDown,
   ChevronUp,
-  BarChart3
+  BarChart3,
+  Video,
+  Edit,
+  Pin,
+  PinOff,
+  Repeat2
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -44,6 +49,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 interface GroupPost {
   id: string;
@@ -51,8 +63,10 @@ interface GroupPost {
   user_id: string;
   content: string | null;
   image_url: string | null;
+  video_url: string | null;
   file_url: string | null;
   file_name: string | null;
+  is_pinned: boolean;
   created_at: string;
   profile?: {
     user_id: string;
@@ -112,13 +126,21 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
   const [newContent, setNewContent] = useState("");
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<File | null>(null);
+  const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Delete state
   const [postToDelete, setPostToDelete] = useState<GroupPost | null>(null);
+
+  // Edit state
+  const [postToEdit, setPostToEdit] = useState<GroupPost | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   // User profile for the composer
   const [myProfile, setMyProfile] = useState<Profile | null>(null);
@@ -284,8 +306,10 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
           user_id: post.sender_id,
           content: post.content,
           image_url: (post as any).image_url || null,
+          video_url: (post as any).video_url || null,
           file_url: (post as any).file_url || null,
           file_name: (post as any).file_name || null,
+          is_pinned: (post as any).is_pinned || false,
           created_at: post.created_at,
           profile: profiles?.find(p => p.user_id === post.sender_id),
           comment_count: countMap.get(post.id) || 0
@@ -390,10 +414,34 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
     }
 
     setSelectedImage(file);
+    setSelectedVideo(null);
+    setVideoPreview(null);
     setSelectedFile(null);
     const reader = new FileReader();
     reader.onload = (e) => setImagePreview(e.target?.result as string);
     reader.readAsDataURL(file);
+  };
+
+  const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('video/')) {
+      toast.error("Selecteer een video");
+      return;
+    }
+
+    if (file.size > 100 * 1024 * 1024) {
+      toast.error("Video mag maximaal 100MB zijn");
+      return;
+    }
+
+    setSelectedVideo(file);
+    setSelectedImage(null);
+    setImagePreview(null);
+    setSelectedFile(null);
+    const url = URL.createObjectURL(file);
+    setVideoPreview(url);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -408,25 +456,31 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
     setSelectedFile(file);
     setSelectedImage(null);
     setImagePreview(null);
+    setSelectedVideo(null);
+    setVideoPreview(null);
   };
 
   const clearAttachments = () => {
     setSelectedImage(null);
     setSelectedFile(null);
+    setSelectedVideo(null);
     setImagePreview(null);
+    setVideoPreview(null);
     if (imageInputRef.current) imageInputRef.current.value = '';
+    if (videoInputRef.current) videoInputRef.current.value = '';
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const publishPost = async () => {
-    if (!user || (!newContent.trim() && !selectedImage && !selectedFile)) {
-      toast.error("Voeg tekst, een afbeelding of bestand toe");
+    if (!user || (!newContent.trim() && !selectedImage && !selectedVideo && !selectedFile)) {
+      toast.error("Voeg tekst, een afbeelding, video of bestand toe");
       return;
     }
 
     setIsPublishing(true);
     try {
       let imageUrl: string | null = null;
+      let videoUrl: string | null = null;
       let fileUrl: string | null = null;
       let fileName: string | null = null;
 
@@ -446,6 +500,22 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
         imageUrl = urlData.publicUrl;
       }
 
+      // Upload video if selected
+      if (selectedVideo) {
+        const filePath = `${user.id}/group-posts/videos/${Date.now()}-${selectedVideo.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from('user-files')
+          .upload(filePath, selectedVideo);
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from('user-files')
+          .getPublicUrl(filePath);
+
+        videoUrl = urlData.publicUrl;
+      }
+
       // Upload file if selected
       if (selectedFile) {
         const filePath = `${user.id}/group-posts/${Date.now()}-${selectedFile.name}`;
@@ -463,7 +533,7 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
         fileName = selectedFile.name;
       }
 
-      // Create post with image and file data
+      // Create post with image, video and file data
       const { data: postData, error } = await supabase
         .from("group_messages")
         .insert({
@@ -471,6 +541,7 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
           sender_id: user.id,
           content: newContent.trim() || null,
           image_url: imageUrl,
+          video_url: videoUrl,
           file_url: fileUrl,
           file_name: fileName,
         })
@@ -520,6 +591,43 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
     }
   };
 
+  const savePostEdit = async () => {
+    if (!postToEdit || !editContent.trim()) return;
+
+    setIsSavingEdit(true);
+    try {
+      await supabase
+        .from("group_messages")
+        .update({ content: editContent.trim() })
+        .eq("id", postToEdit.id);
+
+      toast.success("Post bijgewerkt");
+      setPostToEdit(null);
+      setEditContent("");
+      loadPosts();
+    } catch (error) {
+      console.error("Edit error:", error);
+      toast.error("Kon post niet bewerken");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const togglePinPost = async (post: GroupPost) => {
+    try {
+      await supabase
+        .from("group_messages")
+        .update({ is_pinned: !post.is_pinned })
+        .eq("id", post.id);
+
+      toast.success(post.is_pinned ? "Post losgemaaktt" : "Post vastgezet");
+      loadPosts();
+    } catch (error) {
+      console.error("Pin error:", error);
+      toast.error("Kon post niet vastzetten");
+    }
+  };
+
   const deletePost = async () => {
     if (!postToDelete) return;
 
@@ -558,6 +666,222 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
   };
 
   const isUserVerified = (userId: string) => verifiedUserIds.includes(userId);
+
+  // Render a single post
+  const renderPost = (post: GroupPost) => (
+    <>
+      {/* Header */}
+      <div className="flex items-start justify-between mb-3">
+        <button
+          onClick={() => post.profile?.username && navigate(`/profiel/${post.profile.username}`)}
+          className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+        >
+          <Avatar className="w-15 h-15 bg-background" style={{ width: '3.75rem', height: '3.75rem' }}>
+            {post.profile?.avatar_url && <AvatarImage src={post.profile.avatar_url} className="object-cover" />}
+            <AvatarFallback className="bg-background text-foreground">
+              {getInitials(post.profile?.display_name || post.profile?.full_name || "?")}
+            </AvatarFallback>
+          </Avatar>
+          <div className="text-left">
+            <p className="font-semibold flex items-center">
+              {post.profile?.display_name || post.profile?.full_name}
+              {post.profile?.user_id && isUserVerified(post.profile.user_id) && (
+                <VerifiedBadge />
+              )}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              @{post.profile?.username} • {formatDate(post.created_at)}
+            </p>
+          </div>
+        </button>
+
+        {/* Actions dropdown for post owner or admin */}
+        {(post.user_id === user?.id || isAdmin) && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-full h-8 w-8">
+                <MoreHorizontal className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {post.user_id === user?.id && (
+                <DropdownMenuItem onClick={() => {
+                  setPostToEdit(post);
+                  setEditContent(post.content || "");
+                }}>
+                  <Edit className="w-4 h-4 mr-2" />
+                  Bewerken
+                </DropdownMenuItem>
+              )}
+              {isAdmin && (
+                <DropdownMenuItem onClick={() => togglePinPost(post)}>
+                  {post.is_pinned ? (
+                    <>
+                      <PinOff className="w-4 h-4 mr-2" />
+                      Losmaken
+                    </>
+                  ) : (
+                    <>
+                      <Pin className="w-4 h-4 mr-2" />
+                      Vastzetten
+                    </>
+                  )}
+                </DropdownMenuItem>
+              )}
+              {post.user_id === user?.id && (
+                <DropdownMenuItem
+                  onClick={() => setPostToDelete(post)}
+                  className="text-destructive"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Verwijderen
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+
+      {/* Content */}
+      {post.content && (
+        <p className="text-foreground whitespace-pre-wrap mb-3">
+          <LinkifiedText text={post.content} />
+        </p>
+      )}
+
+      {/* Image */}
+      {post.image_url && (
+        <img
+          src={post.image_url}
+          alt="Post"
+          className="rounded-xl max-h-96 w-full object-cover mb-3"
+        />
+      )}
+
+      {/* Video */}
+      {post.video_url && (
+        <video
+          src={post.video_url}
+          controls
+          className="rounded-xl max-h-96 w-full mb-3"
+        />
+      )}
+
+      {/* File */}
+      {post.file_url && post.file_name && (
+        <a
+          href={post.file_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 p-3 rounded-xl bg-muted hover:bg-muted/80 transition-colors mb-3"
+        >
+          <FileText className="w-5 h-5 text-primary" />
+          <span className="flex-1 truncate">{post.file_name}</span>
+        </a>
+      )}
+
+      {/* Reactions Section */}
+      <div className="mt-3">
+        <PostReactions messageId={post.id} />
+      </div>
+
+      {/* Comments Section */}
+      <div className="mt-4 pt-3 border-t">
+        <button
+          onClick={() => toggleComments(post.id)}
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <MessageCircle className="w-4 h-4" />
+          <span>{post.comment_count || 0} opmerkingen</span>
+          {expandedComments.has(post.id) ? (
+            <ChevronUp className="w-4 h-4" />
+          ) : (
+            <ChevronDown className="w-4 h-4" />
+          )}
+        </button>
+
+        {expandedComments.has(post.id) && (
+          <div className="mt-3 space-y-3">
+            {/* Comment input */}
+            {user && (
+              <div className="flex items-start gap-2">
+                <Avatar className="w-10 h-10 bg-background">
+                  {myProfile?.avatar_url && <AvatarImage src={myProfile.avatar_url} className="object-cover" />}
+                  <AvatarFallback className="text-xs bg-background text-foreground">
+                    {myProfile ? getInitials(myProfile.display_name || myProfile.full_name) : "?"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 flex gap-2">
+                  <Input
+                    placeholder="Schrijf een reactie... 😊"
+                    value={newComments.get(post.id) || ""}
+                    onChange={(e) => setNewComments(prev => new Map(prev).set(post.id, e.target.value))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        postComment(post.id);
+                      }
+                    }}
+                    className="flex-1 h-9 rounded-full text-sm"
+                  />
+                  <Button
+                    size="sm"
+                    className="rounded-full h-9 w-9 p-0"
+                    disabled={postingComment === post.id || !newComments.get(post.id)?.trim()}
+                    onClick={() => postComment(post.id)}
+                  >
+                    {postingComment === post.id ? (
+                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Comments list */}
+            {commentsMap.get(post.id)?.map((comment) => (
+              <div key={comment.id} className="flex items-start gap-2">
+                <Avatar 
+                  className="w-10 h-10 cursor-pointer bg-background"
+                  onClick={() => comment.profile?.username && navigate(`/profiel/${comment.profile.username}`)}
+                >
+                  {comment.profile?.avatar_url && <AvatarImage src={comment.profile.avatar_url} className="object-cover" />}
+                  <AvatarFallback className="text-xs bg-background text-foreground">
+                    {getInitials(comment.profile?.display_name || comment.profile?.full_name || "?")}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 bg-muted rounded-2xl px-3 py-2">
+                  <p 
+                    className="text-sm font-medium cursor-pointer hover:underline flex items-center"
+                    onClick={() => comment.profile?.username && navigate(`/profiel/${comment.profile.username}`)}
+                  >
+                    {comment.profile?.display_name || comment.profile?.full_name}
+                    {comment.profile?.user_id && isUserVerified(comment.profile.user_id) && (
+                      <VerifiedBadge className="w-4 h-4" />
+                    )}
+                  </p>
+                  <p className="text-sm">
+                    <LinkifiedText text={comment.content} />
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formatDate(comment.created_at)}
+                  </p>
+                </div>
+              </div>
+            ))}
+
+            {commentsMap.get(post.id)?.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-2">
+                Nog geen reacties. Wees de eerste!
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
 
   if (loading) {
     return (
@@ -610,6 +934,25 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
                   </div>
                 )}
 
+                {/* Video Preview */}
+                {videoPreview && (
+                  <div className="relative mt-3">
+                    <video
+                      src={videoPreview}
+                      controls
+                      className="rounded-xl max-h-64 w-full"
+                    />
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      className="absolute top-2 right-2 rounded-full h-8 w-8"
+                      onClick={clearAttachments}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+
                 {/* File Preview */}
                 {selectedFile && (
                   <div className="mt-3 flex items-center gap-2 p-3 rounded-xl bg-muted">
@@ -634,6 +977,7 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
                       size="icon"
                       className="rounded-full h-9 w-9"
                       onClick={() => imageInputRef.current?.click()}
+                      title="Afbeelding toevoegen"
                     >
                       <ImageIcon className="w-5 h-5 text-primary" />
                     </Button>
@@ -641,7 +985,17 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
                       variant="ghost"
                       size="icon"
                       className="rounded-full h-9 w-9"
+                      onClick={() => videoInputRef.current?.click()}
+                      title="Video toevoegen"
+                    >
+                      <Video className="w-5 h-5 text-primary" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="rounded-full h-9 w-9"
                       onClick={() => fileInputRef.current?.click()}
+                      title="Bestand toevoegen"
                     >
                       <FileText className="w-5 h-5 text-primary" />
                     </Button>
@@ -662,6 +1016,13 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
                       className="hidden"
                     />
                     <input
+                      ref={videoInputRef}
+                      type="file"
+                      accept="video/*"
+                      onChange={handleVideoSelect}
+                      className="hidden"
+                    />
+                    <input
                       ref={fileInputRef}
                       type="file"
                       onChange={handleFileSelect}
@@ -670,7 +1031,7 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
                   </div>
                   <Button
                     onClick={publishPost}
-                    disabled={isPublishing || (!newContent.trim() && !selectedImage && !selectedFile)}
+                    disabled={isPublishing || (!newContent.trim() && !selectedImage && !selectedVideo && !selectedFile)}
                     className="rounded-full gap-2"
                   >
                     {isPublishing ? (
@@ -709,183 +1070,24 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
         </div>
       ) : (
         <div className="space-y-4">
-          {posts.map((post) => (
+          {/* Pinned posts first */}
+          {posts.filter(p => p.is_pinned).map((post) => (
+            <Card key={post.id} className="overflow-hidden border-primary/50">
+              <CardContent className="p-4">
+                {/* Pinned indicator */}
+                <div className="flex items-center gap-1 text-xs text-primary mb-2">
+                  <Pin className="w-3 h-3" />
+                  <span>Vastgezet</span>
+                </div>
+                {renderPost(post)}
+              </CardContent>
+            </Card>
+          ))}
+          {/* Regular posts */}
+          {posts.filter(p => !p.is_pinned).map((post) => (
             <Card key={post.id} className="overflow-hidden">
               <CardContent className="p-4">
-                {/* Header */}
-                <div className="flex items-start justify-between mb-3">
-                  <button
-                    onClick={() => post.profile?.username && navigate(`/profiel/${post.profile.username}`)}
-                    className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-                  >
-                    <Avatar className="w-15 h-15 bg-background" style={{ width: '3.75rem', height: '3.75rem' }}>
-                      {post.profile?.avatar_url && <AvatarImage src={post.profile.avatar_url} className="object-cover" />}
-                      <AvatarFallback className="bg-background text-foreground">
-                        {getInitials(post.profile?.display_name || post.profile?.full_name || "?")}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="text-left">
-                      <p className="font-semibold flex items-center">
-                        {post.profile?.display_name || post.profile?.full_name}
-                        {post.profile?.user_id && isUserVerified(post.profile.user_id) && (
-                          <VerifiedBadge />
-                        )}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        @{post.profile?.username} • {formatDate(post.created_at)}
-                      </p>
-                    </div>
-                  </button>
-
-                  {post.user_id === user?.id && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="rounded-full h-8 w-8">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => setPostToDelete(post)}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Verwijderen
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                </div>
-
-                {/* Content */}
-                {post.content && (
-                  <p className="text-foreground whitespace-pre-wrap mb-3">
-                    <LinkifiedText text={post.content} />
-                  </p>
-                )}
-
-                {/* Image */}
-                {post.image_url && (
-                  <img
-                    src={post.image_url}
-                    alt="Post"
-                    className="rounded-xl max-h-96 w-full object-cover mb-3"
-                  />
-                )}
-
-                {/* File */}
-                {post.file_url && post.file_name && (
-                  <a
-                    href={post.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-3 p-3 rounded-xl bg-muted hover:bg-muted/80 transition-colors mb-3"
-                  >
-                    <FileText className="w-5 h-5 text-primary" />
-                    <span className="flex-1 truncate">{post.file_name}</span>
-                  </a>
-                )}
-
-                {/* Reactions Section */}
-                <div className="mt-3">
-                  <PostReactions messageId={post.id} />
-                </div>
-
-                {/* Comments Section */}
-                <div className="mt-4 pt-3 border-t">
-                  <button
-                    onClick={() => toggleComments(post.id)}
-                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                    <span>{post.comment_count || 0} opmerkingen</span>
-                    {expandedComments.has(post.id) ? (
-                      <ChevronUp className="w-4 h-4" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4" />
-                    )}
-                  </button>
-
-                  {expandedComments.has(post.id) && (
-                    <div className="mt-3 space-y-3">
-                      {/* Comment input */}
-                      {user && (
-                        <div className="flex items-start gap-2">
-                          <Avatar className="w-10 h-10 bg-background">
-                            {myProfile?.avatar_url && <AvatarImage src={myProfile.avatar_url} className="object-cover" />}
-                            <AvatarFallback className="text-xs bg-background text-foreground">
-                              {myProfile ? getInitials(myProfile.display_name || myProfile.full_name) : "?"}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 flex gap-2">
-                            <Input
-                              placeholder="Schrijf een reactie... 😊"
-                              value={newComments.get(post.id) || ""}
-                              onChange={(e) => setNewComments(prev => new Map(prev).set(post.id, e.target.value))}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                  e.preventDefault();
-                                  postComment(post.id);
-                                }
-                              }}
-                              className="flex-1 h-9 rounded-full text-sm"
-                            />
-                            <Button
-                              size="sm"
-                              className="rounded-full h-9 w-9 p-0"
-                              disabled={postingComment === post.id || !newComments.get(post.id)?.trim()}
-                              onClick={() => postComment(post.id)}
-                            >
-                              {postingComment === post.id ? (
-                                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                              ) : (
-                                <Send className="w-4 h-4" />
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Comments list */}
-                      {commentsMap.get(post.id)?.map((comment) => (
-                        <div key={comment.id} className="flex items-start gap-2">
-                          <Avatar 
-                            className="w-10 h-10 cursor-pointer bg-background"
-                            onClick={() => comment.profile?.username && navigate(`/profiel/${comment.profile.username}`)}
-                          >
-                            {comment.profile?.avatar_url && <AvatarImage src={comment.profile.avatar_url} className="object-cover" />}
-                            <AvatarFallback className="text-xs bg-background text-foreground">
-                              {getInitials(comment.profile?.display_name || comment.profile?.full_name || "?")}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 bg-muted rounded-2xl px-3 py-2">
-                            <p 
-                              className="text-sm font-medium cursor-pointer hover:underline flex items-center"
-                              onClick={() => comment.profile?.username && navigate(`/profiel/${comment.profile.username}`)}
-                            >
-                              {comment.profile?.display_name || comment.profile?.full_name}
-                              {comment.profile?.user_id && isUserVerified(comment.profile.user_id) && (
-                                <VerifiedBadge className="w-4 h-4" />
-                              )}
-                            </p>
-                            <p className="text-sm">
-                              <LinkifiedText text={comment.content} />
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {formatDate(comment.created_at)}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-
-                      {commentsMap.get(post.id)?.length === 0 && (
-                        <p className="text-sm text-muted-foreground text-center py-2">
-                          Nog geen reacties. Wees de eerste!
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
+                {renderPost(post)}
               </CardContent>
             </Card>
           ))}
@@ -912,6 +1114,29 @@ export function GroupPosts({ groupId, isPublicGroup = false, isAdmin = true }: G
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!postToEdit} onOpenChange={() => setPostToEdit(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Post bewerken</DialogTitle>
+          </DialogHeader>
+          <Textarea
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            placeholder="Wat wil je delen?"
+            className="min-h-[100px]"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPostToEdit(null)}>
+              Annuleren
+            </Button>
+            <Button onClick={savePostEdit} disabled={isSavingEdit || !editContent.trim()}>
+              {isSavingEdit ? "Opslaan..." : "Opslaan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
