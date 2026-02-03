@@ -542,8 +542,10 @@ export type Database = {
           group_id: string
           id: string
           image_url: string | null
+          is_pinned: boolean | null
           sender_id: string
           task_id: string | null
+          video_url: string | null
         }
         Insert: {
           content?: string | null
@@ -554,8 +556,10 @@ export type Database = {
           group_id: string
           id?: string
           image_url?: string | null
+          is_pinned?: boolean | null
           sender_id: string
           task_id?: string | null
+          video_url?: string | null
         }
         Update: {
           content?: string | null
@@ -566,8 +570,10 @@ export type Database = {
           group_id?: string
           id?: string
           image_url?: string | null
+          is_pinned?: boolean | null
           sender_id?: string
           task_id?: string | null
+          video_url?: string | null
         }
         Relationships: [
           {
@@ -886,6 +892,7 @@ export type Database = {
           image_url: string | null
           updated_at: string
           user_id: string
+          video_url: string | null
         }
         Insert: {
           content?: string | null
@@ -896,6 +903,7 @@ export type Database = {
           image_url?: string | null
           updated_at?: string
           user_id: string
+          video_url?: string | null
         }
         Update: {
           content?: string | null
@@ -906,6 +914,7 @@ export type Database = {
           image_url?: string | null
           updated_at?: string
           user_id?: string
+          video_url?: string | null
         }
         Relationships: []
       }

@@ -186,9 +186,9 @@ export default function GroupProfile() {
               <p className="text-muted-foreground">{memberCount} leden</p>
             </div>
             
-            {/* Go to Community button */}
+            {/* Go to Community button - navigates directly to community detail */}
             <Button
-              onClick={() => navigate("/communities")}
+              onClick={() => navigate("/communities", { state: { openCommunityId: group.id } })}
               className="rounded-full"
             >
               Ga naar community
