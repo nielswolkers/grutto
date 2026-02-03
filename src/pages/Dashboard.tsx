@@ -53,18 +53,45 @@ export default function Dashboard() {
 
   const loadStudyProgress = async () => {
     if (!user) return;
-    const { data: profile } = await supabase.from("profiles").select("study_goal_minutes").eq("user_id", user.id).single();
-    if (profile?.study_goal_minutes) setStudyGoal(profile.study_goal_minutes);
+    
+    try {
+      const { data: profile } = await supabase.from("profiles").select("study_goal_minutes").eq("user_id", user.id).single();
+      if (profile?.study_goal_minutes) setStudyGoal(profile.study_goal_minutes);
 
-    const today = new Date();
-    const { data: sessions } = await supabase.from("study_sessions").select("duration_minutes, is_active, started_at").eq("user_id", user.id).gte("started_at", startOfDay(today).toISOString()).lte("started_at", endOfDay(today).toISOString());
+      const today = new Date();
+      const dayStart = startOfDay(today).toISOString();
+      const dayEnd = endOfDay(today).toISOString();
+      
+      const { data: sessions, error } = await supabase
+        .from("study_sessions")
+        .select("duration_minutes, is_active, started_at")
+        .eq("user_id", user.id)
+        .gte("started_at", dayStart)
+        .lte("started_at", dayEnd);
 
-    let totalMinutes = 0;
-    sessions?.forEach(session => {
-      totalMinutes += session.is_active ? Math.floor((Date.now() - new Date(session.started_at).getTime()) / 60000) : (session.duration_minutes || 0);
-    });
-    setTodayStudyMinutes(totalMinutes);
-    setStudyProgress(Math.min(100, Math.round((totalMinutes / (profile?.study_goal_minutes || 120)) * 100)));
+      if (error) {
+        console.error("Error loading study sessions:", error);
+        return;
+      }
+
+      let totalMinutes = 0;
+      sessions?.forEach(session => {
+        if (session.is_active) {
+          // For active sessions, calculate time from started_at until now
+          const startTime = new Date(session.started_at).getTime();
+          const activeMinutes = Math.floor((Date.now() - startTime) / 60000);
+          totalMinutes += Math.max(0, activeMinutes);
+        } else {
+          totalMinutes += session.duration_minutes || 0;
+        }
+      });
+      
+      setTodayStudyMinutes(totalMinutes);
+      const goalMinutes = profile?.study_goal_minutes || 120;
+      setStudyProgress(Math.min(100, Math.round((totalMinutes / goalMinutes) * 100)));
+    } catch (error) {
+      console.error("Failed to load study progress:", error);
+    }
   };
 
   const loadUpcomingTests = async () => {

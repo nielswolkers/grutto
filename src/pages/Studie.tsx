@@ -443,6 +443,10 @@ export default function Studie() {
       setCurrentSessionId(null);
       setElapsedTime(0);
       setPausedElapsedTime(0);
+      
+      // Update today's study time immediately after stopping
+      setMyTodayStudyMinutes(prev => prev + durationMinutes);
+      
       toast.success(`Studiesessie beëindigd (${formatTime(elapsedTime)})`);
     } catch (error) {
       console.error("Failed to stop session:", error);
