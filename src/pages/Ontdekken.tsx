@@ -12,8 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { LinkifiedText } from "@/components/LinkifiedText";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { useVerifiedUsers, useVerifiedGroups } from "@/hooks/useVerifiedStatus";
-import { CommunityDetailView } from "@/components/communities/CommunityDetailView";
-import { 
+import {
   Search, 
   Image as ImageIcon, 
   FileText, 
@@ -143,7 +142,6 @@ export default function Ontdekken() {
   const [myGroupIds, setMyGroupIds] = useState<Set<string>>(new Set());
   const [myGroups, setMyGroups] = useState<StudyGroup[]>([]);
   const [adminGroupIds, setAdminGroupIds] = useState<Set<string>>(new Set());
-  const [selectedCommunity, setSelectedCommunity] = useState<StudyGroup | null>(null);
   const [pendingOpenCommunityId, setPendingOpenCommunityId] = useState<string | null>(
     (location.state as any)?.openCommunityId || null
   );
@@ -180,18 +178,13 @@ export default function Ontdekken() {
     };
   }, [activeView]);
 
-  // Handle navigation with openCommunityId state - auto-open the community
+  // Handle navigation with openCommunityId state - redirect to community page
   useEffect(() => {
-    if (pendingOpenCommunityId && myGroups.length > 0) {
-      const communityToOpen = myGroups.find(g => g.id === pendingOpenCommunityId);
-      if (communityToOpen) {
-        setSelectedCommunity(communityToOpen);
-        setPendingOpenCommunityId(null);
-        // Clear the state from history
-        window.history.replaceState({}, document.title);
-      }
+    if (pendingOpenCommunityId) {
+      navigate(`/community/${pendingOpenCommunityId}`, { replace: true });
+      setPendingOpenCommunityId(null);
     }
-  }, [pendingOpenCommunityId, myGroups]);
+  }, [pendingOpenCommunityId, navigate]);
 
   const loadMyGroups = async () => {
     if (!user) return;
@@ -666,10 +659,7 @@ export default function Ontdekken() {
       <div className="flex justify-center mb-6">
         <div className="inline-flex bg-muted rounded-full p-1" style={{ minWidth: '320px' }}>
           <button
-            onClick={() => {
-              setActiveView("mijn");
-              setSelectedCommunity(null);
-            }}
+            onClick={() => setActiveView("mijn")}
             className={`flex-1 px-6 py-2 rounded-full text-sm font-medium transition-colors ${
               activeView === "mijn" 
                 ? "bg-background shadow text-foreground" 
@@ -679,10 +669,7 @@ export default function Ontdekken() {
             Mijn Communities
           </button>
           <button
-            onClick={() => {
-              setActiveView("ontdekken");
-              setSelectedCommunity(null);
-            }}
+            onClick={() => setActiveView("ontdekken")}
             className={`flex-1 px-6 py-2 rounded-full text-sm font-medium transition-colors ${
               activeView === "ontdekken" 
                 ? "bg-background shadow text-foreground" 
@@ -695,77 +682,67 @@ export default function Ontdekken() {
       </div>
 
       {activeView === "mijn" ? (
-        // My Communities View - Cards grid like screenshot
-        selectedCommunity ? (
-          // Community Detail View with Posts/Chat
-          <CommunityDetailView 
-            group={selectedCommunity}
-            user={user}
-            onBack={() => setSelectedCommunity(null)}
-            isGroupVerified={isGroupVerified}
-          />
-        ) : (
-          <div className="space-y-6">
-            {myGroups.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p className="text-lg font-medium">Geen communities gevonden</p>
-                <p className="text-sm">Ontdek nieuwe communities om lid te worden!</p>
-                <Button 
-                  variant="outline" 
-                  className="mt-4 rounded-full"
-                  onClick={() => setActiveView("ontdekken")}
-                >
-                  Ontdekken
-                </Button>
-              </div>
-            ) : (
-              // Community Cards Grid - Like the screenshot
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {myGroups.map((group) => {
-                  const isAdmin = adminGroupIds.has(group.id);
-                  return (
-                    <Card 
-                      key={group.id}
-                      className="cursor-pointer hover:shadow-md transition-shadow border"
-                      onClick={() => setSelectedCommunity(group)}
-                    >
-                      <CardContent className="p-4 flex items-center gap-4">
-                        <Avatar className="w-14 h-14 bg-background border">
-                          {group.avatar_url ? (
-                            <AvatarImage src={group.avatar_url} className="object-cover" />
-                          ) : null}
-                          <AvatarFallback className="bg-muted text-primary">
-                            <Users className="w-6 h-6" />
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-semibold flex items-center gap-1 truncate">
-                              {group.name}
-                              {group.is_public && isGroupVerified(group.id) && (
-                                <VerifiedBadge className="flex-shrink-0" />
-                              )}
-                              {!group.is_public && (
-                                <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                              )}
-                            </p>
-                            {isAdmin && (
-                              <Badge variant="outline" className="text-xs text-primary border-primary/30 bg-primary/5">
-                                Beheerder
-                              </Badge>
+        // My Communities View - Cards grid
+        <div className="space-y-6">
+          {myGroups.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">Geen communities gevonden</p>
+              <p className="text-sm">Ontdek nieuwe communities om lid te worden!</p>
+              <Button 
+                variant="outline" 
+                className="mt-4 rounded-full"
+                onClick={() => setActiveView("ontdekken")}
+              >
+                Ontdekken
+              </Button>
+            </div>
+          ) : (
+            // Community Cards Grid - Like the screenshot
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {myGroups.map((group) => {
+                const isAdmin = adminGroupIds.has(group.id);
+                return (
+                  <Card 
+                    key={group.id}
+                    className="cursor-pointer hover:shadow-md transition-shadow border"
+                    onClick={() => navigate(`/community/${group.id}`)}
+                  >
+                    <CardContent className="p-4 flex items-center gap-4">
+                      <Avatar className="w-14 h-14 bg-background border">
+                        {group.avatar_url ? (
+                          <AvatarImage src={group.avatar_url} className="object-cover" />
+                        ) : null}
+                        <AvatarFallback className="bg-muted text-primary">
+                          <Users className="w-6 h-6" />
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold flex items-center gap-1 truncate">
+                            {group.name}
+                            {group.is_public && isGroupVerified(group.id) && (
+                              <VerifiedBadge className="flex-shrink-0" />
                             )}
-                          </div>
-                          <p className="text-sm text-muted-foreground">{group.member_count} leden</p>
+                            {!group.is_public && (
+                              <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                            )}
+                          </p>
+                          {isAdmin && (
+                            <Badge variant="outline" className="text-xs text-primary border-primary/30 bg-primary/5">
+                              Beheerder
+                            </Badge>
+                          )}
                         </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )
+                        <p className="text-sm text-muted-foreground">{group.member_count} leden</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
       ) : (
         // Ontdekken View - Search + Publications Feed only
         <div className="space-y-6">
