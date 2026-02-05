@@ -10,6 +10,7 @@ import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { GroupPosts } from "@/components/studie/GroupPosts";
 import { GroupMaterials } from "@/components/studie/GroupMaterials";
 import { GroupUpdates } from "@/components/studie/GroupUpdates";
+import { ChannelTabs } from "@/components/communities/ChannelTabs";
 import { 
   Users, 
   ChevronLeft, 
@@ -709,57 +710,15 @@ export default function CommunityPage() {
         </div>
       </div>
 
-      {/* Tabs - Private groups get Updates tab */}
-      <div className="flex gap-2 mb-6 border-b">
-        <button
-          onClick={() => setActiveTab("posts")}
-          className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
-            activeTab === "posts"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Newspaper className="w-4 h-4" />
-          Posts
-        </button>
-        
-        {isPrivateGroup && (
-          <button
-            onClick={() => setActiveTab("updates")}
-            className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
-              activeTab === "updates"
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Bell className="w-4 h-4" />
-            Updates
-          </button>
-        )}
-
-        <button
-          onClick={() => setActiveTab("leden")}
-          className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
-            activeTab === "leden"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          Leden
-        </button>
-
-        <button
-          onClick={() => setActiveTab("materials")}
-          className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
-            activeTab === "materials"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <FolderOpen className="w-4 h-4" />
-          Materialen
-        </button>
+      {/* Tabs - Pill style design */}
+      <div className="mb-6">
+        <ChannelTabs
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isPrivateGroup={isPrivateGroup || false}
+          isAdmin={isAdmin}
+          isPublicGroup={group.is_public}
+        />
       </div>
 
       {/* Tab Content */}
