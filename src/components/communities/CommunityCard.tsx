@@ -3,8 +3,6 @@ import { Button } from "@/components/ui/button";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { Users, MapPin } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { extractDominantColor } from "@/utils/colorExtractor";
-import { useEffect, useState } from "react";
 
 interface CommunityCardProps {
   id: string;
@@ -28,21 +26,6 @@ export function CommunityCard({
   isAdmin
 }: CommunityCardProps) {
   const navigate = useNavigate();
-  const [buttonColor, setButtonColor] = useState('hsl(var(--foreground))');
-
-  useEffect(() => {
-    const loadColor = async () => {
-      if (avatar_url) {
-        try {
-          const color = await extractDominantColor(avatar_url);
-          setButtonColor(color);
-        } catch {
-          // Keep default
-        }
-      }
-    };
-    loadColor();
-  }, [avatar_url]);
 
   return (
     <div 
@@ -60,19 +43,25 @@ export function CommunityCard({
         )}
       </div>
 
-      {/* Content */}
-      <div className="px-4 pb-4">
-        {/* Avatar overlapping banner */}
-        <div className="flex items-end gap-3" style={{ marginTop: '-1.5rem' }}>
-          <Avatar className="w-12 h-12 border-2 border-background shadow-lg bg-background">
+      {/* Content section with light background notch overlapping the banner */}
+      <div className="relative px-4 pb-4">
+        {/* Light background notch that overlaps the banner */}
+        <div 
+          className="absolute left-0 right-0 bg-card rounded-t-2xl"
+          style={{ top: '-1rem', height: '2.5rem' }}
+        />
+        
+        {/* Avatar and title row - positioned on top of the notch */}
+        <div className="relative flex items-center gap-3" style={{ marginTop: '-1.75rem' }}>
+          <Avatar className="w-14 h-14 border-2 border-background shadow-lg bg-background flex-shrink-0">
             {avatar_url ? (
               <AvatarImage src={avatar_url} className="object-cover" />
             ) : null}
             <AvatarFallback className="bg-background text-primary">
-              <Users className="w-5 h-5" />
+              <Users className="w-6 h-6" />
             </AvatarFallback>
           </Avatar>
-          <div className="flex-1 min-w-0 pb-0.5">
+          <div className="flex-1 min-w-0 pt-1">
             <div className="flex items-center gap-1.5">
               <h3 className="font-semibold text-foreground truncate">{name}</h3>
               {isVerified && <VerifiedBadge />}
@@ -96,8 +85,7 @@ export function CommunityCard({
           </div>
           <Button
             size="sm"
-            className="rounded-full text-xs px-4 text-white"
-            style={{ backgroundColor: buttonColor }}
+            className="rounded-full text-xs px-4 bg-foreground text-background hover:bg-foreground/90"
             onClick={(e) => {
               e.stopPropagation();
               navigate(`/community/${id}`);

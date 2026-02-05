@@ -659,8 +659,8 @@ export default function Ontdekken() {
 
   return (
     <div className="w-full">
-      {/* Toggle - Mijn Communities / Ontdekken - centered, no page title */}
-      <div className="flex justify-center mb-8">
+      {/* Toggle - Mijn Communities / Ontdekken + Search button - centered, no page title */}
+      <div className="flex justify-center items-center gap-3 mb-8">
         <div className="inline-flex bg-muted rounded-full p-1 border" style={{ minWidth: '400px' }}>
           <button
             onClick={() => setActiveView("mijn")}
@@ -683,6 +683,15 @@ export default function Ontdekken() {
             Ontdekken
           </button>
         </div>
+        {/* Round search button */}
+        <Button
+          variant="outline"
+          size="icon"
+          className="rounded-full h-[46px] w-[46px] bg-muted border hover:bg-muted/80"
+          onClick={() => setActiveView("ontdekken")}
+        >
+          <Search className="w-5 h-5" />
+        </Button>
       </div>
 
       {activeView === "mijn" ? (
@@ -702,8 +711,8 @@ export default function Ontdekken() {
               </Button>
             </div>
           ) : (
-            // Community Cards Grid - matching the screenshot design
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            // Community Cards Grid - matching the screenshot design with more vertical space
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {myGroups.map((group) => {
                 const isAdmin = adminGroupIds.has(group.id);
                 return (
