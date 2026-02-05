@@ -11,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { LinkifiedText } from "@/components/LinkifiedText";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { CommunityCard } from "@/components/communities/CommunityCard";
 import { useVerifiedUsers, useVerifiedGroups } from "@/hooks/useVerifiedStatus";
 import {
   Search, 
@@ -92,6 +93,8 @@ interface StudyGroup {
   id: string;
   name: string;
   avatar_url: string | null;
+  banner_url: string | null;
+  bio: string | null;
   owner_id: string;
   is_public?: boolean;
   member_count?: number;
@@ -189,11 +192,12 @@ export default function Ontdekken() {
   const loadMyGroups = async () => {
     if (!user) return;
     
-    // Get groups where user is owner
+    // Get groups where user is owner (only public ones for this view)
     const { data: ownedGroups } = await supabase
       .from("study_groups")
-      .select("id, name, avatar_url, owner_id, is_public")
-      .eq("owner_id", user.id);
+      .select("id, name, avatar_url, banner_url, bio, owner_id, is_public")
+      .eq("owner_id", user.id)
+      .eq("is_public", true);
 
     // Get groups where user is a member (accepted)
     const { data: memberGroups } = await supabase
@@ -221,13 +225,14 @@ export default function Ontdekken() {
     setMyGroupIds(ids);
     setAdminGroupIds(adminIds);
     
-    // Load full details for ALL groups the user is member of (both public and private)
+    // Load full details for PUBLIC groups only (private groups stay in Studie page)
     const allGroupIds = Array.from(ids);
     if (allGroupIds.length > 0) {
       const { data: allGroupsData } = await supabase
         .from("study_groups")
-        .select("id, name, avatar_url, owner_id, is_public")
-        .in("id", allGroupIds);
+        .select("id, name, avatar_url, banner_url, bio, owner_id, is_public")
+        .in("id", allGroupIds)
+        .eq("is_public", true); // Only public communities
       
       // Get member counts
       const enrichedGroups: StudyGroup[] = [];
@@ -240,6 +245,8 @@ export default function Ontdekken() {
         
         enrichedGroups.push({
           ...group,
+          banner_url: group.banner_url || null,
+          bio: group.bio || null,
           member_count: (count || 0) + 1 // +1 for owner
         });
       }
@@ -406,12 +413,12 @@ export default function Ontdekken() {
       // Search study groups (only public ones)
       const { data: groups } = await supabase
         .from("study_groups")
-        .select("id, name, avatar_url, owner_id, is_public")
+        .select("id, name, avatar_url, banner_url, bio, owner_id, is_public")
         .ilike("name", `%${query}%`)
         .eq("is_public", true)
         .limit(5);
 
-      groups?.forEach(g => results.push({ type: 'group', data: g }));
+      groups?.forEach(g => results.push({ type: 'group', data: { ...g, banner_url: g.banner_url || null, bio: g.bio || null } }));
 
       setSearchResults(results);
     } catch (error) {
@@ -652,17 +659,14 @@ export default function Ontdekken() {
 
   return (
     <div className="w-full">
-      {/* Page Title */}
-      <h1 className="text-4xl font-bold mb-6">Communities</h1>
-
-      {/* Toggle - Mijn Communities / Ontdekken */}
-      <div className="flex justify-center mb-6">
-        <div className="inline-flex bg-muted rounded-full p-1" style={{ minWidth: '320px' }}>
+      {/* Toggle - Mijn Communities / Ontdekken - centered, no page title */}
+      <div className="flex justify-center mb-8">
+        <div className="inline-flex bg-muted rounded-full p-1 border" style={{ minWidth: '400px' }}>
           <button
             onClick={() => setActiveView("mijn")}
-            className={`flex-1 px-6 py-2 rounded-full text-sm font-medium transition-colors ${
+            className={`flex-1 px-8 py-2.5 rounded-full text-sm font-medium transition-colors ${
               activeView === "mijn" 
-                ? "bg-background shadow text-foreground" 
+                ? "bg-background shadow-sm text-foreground" 
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -670,9 +674,9 @@ export default function Ontdekken() {
           </button>
           <button
             onClick={() => setActiveView("ontdekken")}
-            className={`flex-1 px-6 py-2 rounded-full text-sm font-medium transition-colors ${
+            className={`flex-1 px-8 py-2.5 rounded-full text-sm font-medium transition-colors ${
               activeView === "ontdekken" 
-                ? "bg-background shadow text-foreground" 
+                ? "bg-background shadow-sm text-foreground" 
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -682,7 +686,7 @@ export default function Ontdekken() {
       </div>
 
       {activeView === "mijn" ? (
-        // My Communities View - Cards grid
+        // My Communities View - New card design grid
         <div className="space-y-6">
           {myGroups.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
@@ -698,46 +702,22 @@ export default function Ontdekken() {
               </Button>
             </div>
           ) : (
-            // Community Cards Grid - Like the screenshot
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            // Community Cards Grid - matching the screenshot design
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {myGroups.map((group) => {
                 const isAdmin = adminGroupIds.has(group.id);
                 return (
-                  <Card 
+                  <CommunityCard
                     key={group.id}
-                    className="cursor-pointer hover:shadow-md transition-shadow border"
-                    onClick={() => navigate(`/community/${group.id}`)}
-                  >
-                    <CardContent className="p-4 flex items-center gap-4">
-                      <Avatar className="w-14 h-14 bg-background border">
-                        {group.avatar_url ? (
-                          <AvatarImage src={group.avatar_url} className="object-cover" />
-                        ) : null}
-                        <AvatarFallback className="bg-muted text-primary">
-                          <Users className="w-6 h-6" />
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-semibold flex items-center gap-1 truncate">
-                            {group.name}
-                            {group.is_public && isGroupVerified(group.id) && (
-                              <VerifiedBadge className="flex-shrink-0" />
-                            )}
-                            {!group.is_public && (
-                              <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                            )}
-                          </p>
-                          {isAdmin && (
-                            <Badge variant="outline" className="text-xs text-primary border-primary/30 bg-primary/5">
-                              Beheerder
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground">{group.member_count} leden</p>
-                      </div>
-                    </CardContent>
-                  </Card>
+                    id={group.id}
+                    name={group.name}
+                    avatar_url={group.avatar_url}
+                    banner_url={group.banner_url}
+                    bio={group.bio}
+                    member_count={group.member_count || 1}
+                    isVerified={isGroupVerified(group.id)}
+                    isAdmin={isAdmin}
+                  />
                 );
               })}
             </div>

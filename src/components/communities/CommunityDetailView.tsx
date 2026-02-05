@@ -705,9 +705,9 @@ export function CommunityDetailView({ group, user, onBack, isGroupVerified }: Co
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex bg-muted rounded-lg p-1 gap-0.5">
+      {/* Tabs - Pill style design */}
+      <div className="mb-6">
+        <div className="flex bg-muted/50 rounded-full p-1 gap-1 w-fit">
           {[
             { value: 'posts', label: 'Posts', icon: Newspaper },
             ...((fullGroup.is_public && !isAdmin) ? [] : [{ value: 'members', label: 'Leden', icon: Users }]),
@@ -716,7 +716,7 @@ export function CommunityDetailView({ group, user, onBack, isGroupVerified }: Co
             <button 
               key={tab.value} 
               onClick={() => setActiveTab(tab.value)} 
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full transition-all ${
                 activeTab === tab.value 
                   ? 'bg-background text-foreground shadow-sm' 
                   : 'text-muted-foreground hover:text-foreground'
