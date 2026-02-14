@@ -661,12 +661,20 @@ export default function Ontdekken() {
     <div className="w-full">
       {/* Toggle - Mijn Communities / Ontdekken + Search button - centered, no page title */}
       <div className="flex justify-center items-center gap-3 mb-8">
-        <div className="inline-flex bg-muted rounded-full p-1 border" style={{ minWidth: '400px' }}>
+        <div className="inline-flex bg-muted rounded-full p-1 border relative" style={{ minWidth: '400px' }}>
+          {/* Sliding indicator */}
+          <div 
+            className="absolute top-1 bottom-1 rounded-full bg-background shadow-sm transition-all duration-300 ease-out"
+            style={{
+              width: 'calc(50% - 4px)',
+              left: activeView === "mijn" ? '4px' : 'calc(50% + 0px)',
+            }}
+          />
           <button
             onClick={() => setActiveView("mijn")}
-            className={`flex-1 px-8 py-2.5 rounded-full text-sm font-medium transition-colors ${
+            className={`flex-1 px-8 py-2.5 rounded-full text-sm font-medium transition-colors relative z-10 ${
               activeView === "mijn" 
-                ? "bg-background shadow-sm text-foreground" 
+                ? "text-foreground" 
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -674,9 +682,9 @@ export default function Ontdekken() {
           </button>
           <button
             onClick={() => setActiveView("ontdekken")}
-            className={`flex-1 px-8 py-2.5 rounded-full text-sm font-medium transition-colors ${
+            className={`flex-1 px-8 py-2.5 rounded-full text-sm font-medium transition-colors relative z-10 ${
               activeView === "ontdekken" 
-                ? "bg-background shadow-sm text-foreground" 
+                ? "text-foreground" 
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >

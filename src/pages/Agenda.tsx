@@ -1143,14 +1143,22 @@ const Agenda = () => {
       <div className="flex items-center justify-between mb-6 flex-shrink-0">
         <h1 className="text-4xl font-bold text-foreground">{filterTitles[timeFilter]}</h1>
         
-        <div className="flex bg-muted rounded-lg p-1 gap-0.5">
+        <div className="inline-flex bg-muted rounded-full p-1 border relative" style={{ minWidth: '240px' }}>
+          {/* Sliding indicator */}
+          <div 
+            className="absolute top-1 bottom-1 rounded-full bg-background shadow-sm transition-all duration-300 ease-out"
+            style={{
+              width: 'calc(33.333% - 2px)',
+              left: `calc(${(['dag', 'week', 'maand'] as TimeFilter[]).indexOf(timeFilter)} * 33.333% + 1px)`,
+            }}
+          />
           {(['dag', 'week', 'maand'] as TimeFilter[]).map((filter) => (
             <button
               key={filter}
               onClick={() => setTimeFilter(filter)}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+              className={`flex-1 px-4 py-2 text-sm font-medium rounded-full transition-colors relative z-10 ${
                 timeFilter === filter
-                  ? 'bg-background text-foreground shadow-sm'
+                  ? 'text-foreground'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -1370,24 +1378,39 @@ const Agenda = () => {
                             const isDraggedEvent = dragEventId === event.id;
                             const dragOffset = isDraggedEvent ? dragCurrentY - dragStartY : 0;
                             
-                            return (
+                              // Calculate overlap index for this event
+                              const overlappingEvents = dayEvents.filter(other => {
+                                if (other.id === event.id) return false;
+                                return other.start < event.end && other.end > event.start;
+                              });
+                              const allOverlapping = [event, ...overlappingEvents].sort((a, b) => a.start.getTime() - b.start.getTime() || a.id.localeCompare(b.id));
+                              const overlapIndex = allOverlapping.findIndex(e => e.id === event.id);
+                              const totalOverlapping = allOverlapping.length;
+                              const widthPercent = totalOverlapping > 1 ? 100 / totalOverlapping : 100;
+                              const leftPercent = overlapIndex * widthPercent;
+
+                              return (
                               <div
                                 key={event.id}
                                 className={cn(
-                                  "absolute inset-x-0.5 text-xs px-1 py-0.5 rounded truncate z-10 overflow-hidden",
+                                  "absolute text-xs px-1.5 py-1 rounded-xl z-10 overflow-hidden border",
                                   event.source === 'local' && "cursor-grab active:cursor-grabbing",
                                   isDraggedEvent && "opacity-75 shadow-lg"
                                 )}
                                 style={{ 
-                                  backgroundColor: event.color, 
-                                  color: 'white',
+                                  backgroundColor: `${event.color}30`,
+                                  borderColor: `${event.color}50`,
+                                  color: event.color,
+                                  left: `${leftPercent}%`,
+                                  width: `${widthPercent}%`,
                                   top: `calc(${startHour * 48}px + ${style.top} + ${dragOffset}px)`,
                                   height: style.height,
                                 }}
                                 onClick={(e) => handleEventClick(event, e)}
                                 onMouseDown={(e) => handleDragStart(event, e)}
                               >
-                                {event.title}
+                                <span className="font-semibold">{event.title}</span>
+                                <div className="opacity-80 text-[10px]">{format(event.start, 'HH:mm')} – {format(event.end, 'HH:mm')}</div>
                               </div>
                             );
                           })}
@@ -1458,27 +1481,42 @@ const Agenda = () => {
                       const isDraggedEvent = dragEventId === event.id;
                       const dragOffset = isDraggedEvent ? dragCurrentY - dragStartY : 0;
                       
+                      // Calculate overlap for day view
+                      const dayViewEvents = getEventsForHourRange(currentDate);
+                      const overlappingEvents = dayViewEvents.filter(other => {
+                        if (other.id === event.id) return false;
+                        return other.start < event.end && other.end > event.start;
+                      });
+                      const allOverlapping = [event, ...overlappingEvents].sort((a, b) => a.start.getTime() - b.start.getTime() || a.id.localeCompare(b.id));
+                      const overlapIndex = allOverlapping.findIndex(e => e.id === event.id);
+                      const totalOverlapping = allOverlapping.length;
+                      const widthPercent = totalOverlapping > 1 ? 100 / totalOverlapping : 100;
+                      const leftPercent = overlapIndex * widthPercent;
+
                       return (
                         <div
                           key={event.id}
                           className={cn(
-                            "absolute inset-x-1 text-sm px-2 py-1 rounded z-10 overflow-hidden",
+                            "absolute text-sm px-3 py-1.5 rounded-xl z-10 overflow-hidden border",
                             event.source === 'local' && "cursor-grab active:cursor-grabbing",
                             isDraggedEvent && "opacity-75 shadow-lg"
                           )}
                           style={{ 
-                            backgroundColor: event.color, 
-                            color: 'white',
+                            backgroundColor: `${event.color}30`,
+                            borderColor: `${event.color}50`,
+                            color: event.color,
+                            left: `${leftPercent}%`,
+                            width: `${widthPercent}%`,
                             top: `calc(${startHour * 64}px + ${style.top} + ${dragOffset}px)`,
                             height: style.height,
                           }}
                           onClick={(e) => handleEventClick(event, e)}
                           onMouseDown={(e) => handleDragStart(event, e)}
                         >
-                          <span className="font-medium">{event.title}</span>
-                          <span className="ml-2 opacity-80">
-                            {format(event.start, 'HH:mm')} - {format(event.end, 'HH:mm')}
-                          </span>
+                          <span className="font-semibold">{event.title}</span>
+                          <div className="opacity-80 text-xs">
+                            {format(event.start, 'HH:mm')} – {format(event.end, 'HH:mm')}
+                          </div>
                         </div>
                       );
                     })}
@@ -1787,14 +1825,9 @@ const Agenda = () => {
               </>
             ) : sidebarMode === 'create' ? (
               <>
-                {/* Create Event Header - Editable Title with Save Button */}
+                {/* Create Event Header - Non-editable placeholder */}
                 <div className="flex items-center gap-2 mb-3 flex-shrink-0">
-                  <Input
-                    value={newEventTitle}
-                    onChange={(e) => setNewEventTitle(e.target.value)}
-                    className="text-lg font-semibold flex-1 border-none bg-transparent px-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
-                    placeholder="Nieuwe Gebeurtenis"
-                  />
+                  <h3 className="text-lg font-semibold flex-1 text-muted-foreground">Nieuwe Activiteit</h3>
                   <Button
                     size="sm"
                     onClick={saveEvent}
@@ -1807,6 +1840,17 @@ const Agenda = () => {
                 
                 <ScrollArea className="flex-1 -mx-1 px-1">
                   <div className="space-y-3 pr-2">
+                    {/* Event Name */}
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Naam</Label>
+                      <Input
+                        value={newEventTitle === 'Nieuwe Gebeurtenis' ? '' : newEventTitle}
+                        onChange={(e) => setNewEventTitle(e.target.value || 'Nieuwe Gebeurtenis')}
+                        className="h-8 text-sm"
+                        placeholder="Naam van de activiteit"
+                      />
+                    </div>
+
                     {/* Event Type */}
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Type</Label>
@@ -1930,14 +1974,9 @@ const Agenda = () => {
               </>
             ) : sidebarMode === 'meeting' ? (
               <>
-                {/* Meeting Header - Editable Title with Save Button */}
+                {/* Meeting Header - Non-editable placeholder */}
                 <div className="flex items-center gap-2 mb-3 flex-shrink-0">
-                  <Input
-                    value={meetingTitle}
-                    onChange={(e) => setMeetingTitle(e.target.value)}
-                    className="text-lg font-semibold flex-1 border-none bg-transparent px-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
-                    placeholder="Nieuwe Afspraak"
-                  />
+                  <h3 className="text-lg font-semibold flex-1 text-muted-foreground">Nieuwe Afspraak</h3>
                   <Button
                     size="sm"
                     onClick={saveMeeting}
@@ -1950,6 +1989,17 @@ const Agenda = () => {
                 
                 <ScrollArea className="flex-1 -mx-1 px-1">
                   <div className="space-y-3 pr-2">
+                    {/* Meeting Name */}
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Naam</Label>
+                      <Input
+                        value={meetingTitle === 'Nieuwe Afspraak' ? '' : meetingTitle}
+                        onChange={(e) => setMeetingTitle(e.target.value || 'Nieuwe Afspraak')}
+                        className="h-8 text-sm"
+                        placeholder="Naam van de afspraak"
+                      />
+                    </div>
+
                     {/* Date */}
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Datum</Label>

@@ -29,6 +29,7 @@ const Bestanden = () => {
   const [fileTypeFilter, setFileTypeFilter] = useState<string>("all");
   const [folders, setFolders] = useState<any[]>([]);
   const [folderFileCounts, setFolderFileCounts] = useState<Record<string, number>>({});
+  const [showSearch, setShowSearch] = useState(false);
 
   const activeIndex = TABS.findIndex(tab => tab.key === activeView);
 
@@ -81,17 +82,22 @@ const Bestanden = () => {
 
   return (
     <div className="w-full">
-      {/* Page Title */}
-      <h1 className="text-4xl font-bold text-foreground mb-6">Bestanden</h1>
-
-      <div className="mb-8 flex items-center justify-between gap-6">
-        {/* Tab Navigation with sliding indicator */}
-        <div className="relative flex items-center gap-8">
+      {/* Toggle - same style as Communities page - centered */}
+      <div className="flex justify-center items-center gap-3 mb-8">
+        <div className="inline-flex bg-muted rounded-full p-1 border relative" style={{ minWidth: '400px' }}>
+          {/* Sliding indicator */}
+          <div 
+            className="absolute top-1 bottom-1 rounded-full bg-background shadow-sm transition-all duration-300 ease-out"
+            style={{
+              width: 'calc(33.333% - 3px)',
+              left: `calc(${activeIndex} * 33.333% + 2px)`,
+            }}
+          />
           {TABS.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveView(tab.key)}
-              className={`text-[1.15rem] font-medium pb-2 transition-colors ${
+              className={`flex-1 px-6 py-2.5 rounded-full text-sm font-medium transition-colors relative z-10 ${
                 activeView === tab.key 
                   ? "text-foreground" 
                   : "text-muted-foreground hover:text-foreground"
@@ -100,18 +106,22 @@ const Bestanden = () => {
               {tab.label}
             </button>
           ))}
-          {/* Sliding indicator */}
-          <div 
-            className="absolute bottom-0 h-0.5 bg-foreground transition-all duration-300 ease-out"
-            style={{
-              left: `${activeIndex * 106}px`,
-              width: activeIndex === 0 ? '52px' : activeIndex === 1 ? '60px' : '76px',
-            }}
-          />
         </div>
+        {/* Round search button - same as Communities */}
+        <Button
+          variant="outline"
+          size="icon"
+          className="rounded-full h-[46px] w-[46px] bg-muted border hover:bg-muted/80"
+          onClick={() => setShowSearch(!showSearch)}
+        >
+          <Search className="w-5 h-5" />
+        </Button>
+      </div>
 
-        <div className="flex items-center gap-3">
-          <div className="relative w-80">
+      {/* Search bar - shown when search button is clicked */}
+      {showSearch && (
+        <div className="flex justify-center mb-6">
+          <div className="relative w-full max-w-md">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               type="search"
@@ -119,19 +129,22 @@ const Bestanden = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 h-11 rounded-full bg-secondary border-0 focus-visible:ring-1"
+              autoFocus
             />
           </div>
-
-          <Button onClick={() => setShowFolderDialog(true)} variant="ghost" size="sm" className="rounded-full gap-2 h-9 px-4">
-            <FolderPlus className="w-4 h-4" />
-            Voeg map toe
-          </Button>
-
-          <Button onClick={() => setShowUpload(!showUpload)} variant="ghost" size="sm" className="rounded-full gap-2 h-9 px-4">
-            <Upload className="w-4 h-4" />
-            Importeer
-          </Button>
         </div>
+      )}
+
+      <div className="flex justify-end gap-3 mb-6">
+        <Button onClick={() => setShowFolderDialog(true)} variant="ghost" size="sm" className="rounded-full gap-2 h-9 px-4">
+          <FolderPlus className="w-4 h-4" />
+          Voeg map toe
+        </Button>
+
+        <Button onClick={() => setShowUpload(!showUpload)} variant="ghost" size="sm" className="rounded-full gap-2 h-9 px-4">
+          <Upload className="w-4 h-4" />
+          Importeer
+        </Button>
       </div>
 
       {showUpload && (
