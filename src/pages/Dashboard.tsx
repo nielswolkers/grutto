@@ -129,9 +129,17 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-4xl font-bold text-foreground">{filterTitles[timeFilter]}</h1>
-          <div className="flex bg-muted rounded-lg p-1 gap-0.5">
+          <div className="inline-flex bg-muted rounded-full p-1 border relative" style={{ minWidth: '240px' }}>
+            {/* Sliding indicator */}
+            <div 
+              className="absolute top-1 bottom-1 rounded-full bg-background shadow-sm transition-all duration-300 ease-out"
+              style={{
+                width: 'calc(33.333% - 2px)',
+                left: `calc(${(['dag', 'week', 'maand'] as TimeFilter[]).indexOf(timeFilter)} * 33.333% + 1px)`,
+              }}
+            />
             {(['dag', 'week', 'maand'] as TimeFilter[]).map((filter) => (
-              <button key={filter} onClick={() => setTimeFilter(filter)} className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${timeFilter === filter ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
+              <button key={filter} onClick={() => setTimeFilter(filter)} className={`flex-1 px-4 py-2 text-sm font-medium rounded-full transition-colors relative z-10 ${timeFilter === filter ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
                 {filter === 'dag' ? 'Dag' : filter === 'week' ? 'Week' : 'Maand'}
               </button>
             ))}
