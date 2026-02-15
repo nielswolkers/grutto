@@ -232,7 +232,7 @@ export const FolderCard = ({ folder, fileCount, onUpdate }: FolderCardProps) => 
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleDrop}
       className="group relative bg-card rounded-3xl p-6 shadow-md border border-border/60 cursor-pointer transition-all hover:shadow-lg min-w-[160px]"
-      onClick={() => navigate(`/bestanden/folder/${folder.id}`)}
+      onClick={() => navigate(`/materialen/folder/${folder.id}`)}
     >
       <div
         className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity"

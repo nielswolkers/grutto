@@ -529,7 +529,7 @@ const Meldingen = () => {
 
   const handleFileClick = (notification: Notification) => {
     if (notification.file_id && notification.files && !notification.files.deleted_at) {
-      navigate(`/bestanden/preview/${notification.file_id}`);
+      navigate(`/materialen/preview/${notification.file_id}`);
     }
   };
 

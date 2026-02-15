@@ -36,7 +36,7 @@ export default function DashboardLayout() {
   } = useSpotifyPlayer(accessToken);
 
   // Hide playbar on account, meldingen, and bestanden pages
-  const hiddenPlaybarRoutes = ['/account', '/meldingen', '/bestanden'];
+  const hiddenPlaybarRoutes = ['/account', '/meldingen', '/materialen'];
   const shouldShowPlaybar = currentTrack && !hiddenPlaybarRoutes.some(route => 
     location.pathname === route || location.pathname.startsWith(route + '/')
   );

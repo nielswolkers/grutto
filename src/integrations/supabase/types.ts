@@ -631,6 +631,101 @@ export type Database = {
           },
         ]
       }
+      lesson_items: {
+        Row: {
+          content: string | null
+          created_at: string
+          file_id: string | null
+          id: string
+          item_type: string
+          lesson_id: string
+          sort_order: number | null
+          storage_url: string | null
+          title: string
+          updated_at: string
+          user_id: string
+          youtube_url: string | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          file_id?: string | null
+          id?: string
+          item_type: string
+          lesson_id: string
+          sort_order?: number | null
+          storage_url?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+          youtube_url?: string | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          file_id?: string | null
+          id?: string
+          item_type?: string
+          lesson_id?: string
+          sort_order?: number | null
+          storage_url?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+          youtube_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_items_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lesson_items_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lessons: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          subject_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          subject_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          subject_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lessons_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notes: {
         Row: {
           content: string
@@ -1077,6 +1172,39 @@ export type Database = {
           id?: string
           is_active?: boolean
           started_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      subjects: {
+        Row: {
+          color: string | null
+          created_at: string
+          emoji: string | null
+          id: string
+          name: string
+          sort_order: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          emoji?: string | null
+          id?: string
+          name: string
+          sort_order?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          emoji?: string | null
+          id?: string
+          name?: string
+          sort_order?: number | null
+          updated_at?: string
           user_id?: string
         }
         Relationships: []

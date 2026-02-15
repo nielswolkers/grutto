@@ -209,7 +209,7 @@ export function Sidebar() {
           </NavLink>
           
           <NavLink 
-            to="/bestanden" 
+            to="/materialen" 
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
             activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
           >
@@ -220,7 +220,7 @@ export function Sidebar() {
                 opacity: textOpacity,
                 transition: isDragging ? 'none' : 'opacity 0.3s ease-out'
               }}
-            >Bestanden</span>
+            >Materialen</span>
           </NavLink>
           
           <NavLink 
