@@ -68,13 +68,13 @@ const FolderView = () => {
       if (error) throw error;
       if (!data) {
         toast.error("Map niet gevonden");
-        navigate('/bestanden');
+        navigate('/materialen');
         return;
       }
       setFolder(data);
     } catch (error) {
       toast.error("Kon map niet laden");
-      navigate('/bestanden');
+      navigate('/materialen');
     }
   };
 
@@ -384,7 +384,7 @@ const FolderView = () => {
               key={file.id}
               draggable
               onDragStart={(e) => handleDragStart(file.id, e)}
-              onClick={() => navigate(`/bestanden/preview/${file.id}`)}
+              onClick={() => navigate(`/materialen/preview/${file.id}`)}
               onMouseEnter={() => setHoveredFileId(file.id)}
               onMouseLeave={() => setHoveredFileId(null)}
               className="group flex items-center gap-4 p-5 bg-card rounded-2xl border hover:border-primary/20 transition-all cursor-pointer hover:shadow-sm"

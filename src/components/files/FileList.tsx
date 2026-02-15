@@ -225,7 +225,7 @@ export const FileList = ({ userId, viewType, searchQuery, refreshTrigger, sortBy
   };
 
   const handleFileClick = (file: FileData) => {
-    navigate(`/bestanden/preview/${file.id}`);
+    navigate(`/materialen/preview/${file.id}`);
   };
 
   const handleFileDoubleClick = (file: FileData, e: React.MouseEvent) => {

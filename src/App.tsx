@@ -9,7 +9,7 @@ import { SidebarProvider } from "./contexts/SidebarContext";
 import DashboardLayout from "./pages/DashboardLayout";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
-import Bestanden from "./pages/Bestanden";
+import Materialen from "./pages/Materialen";
 import FolderView from "./pages/FolderView";
 import FilePreview from "./pages/FilePreview";
 import Meldingen from "./pages/Meldingen";
@@ -66,9 +66,12 @@ function AppRoutes() {
         <Route path="/studie" element={<Studie />} />
         <Route path="/cijfers" element={<PlaceholderPage />} />
         <Route path="/taken" element={<Taken />} />
-        <Route path="/bestanden" element={<Bestanden />} />
-        <Route path="/bestanden/folder/:folderId" element={<FolderView />} />
-        <Route path="/bestanden/preview/:fileId" element={<FilePreview />} />
+        <Route path="/materialen" element={<Materialen />} />
+        <Route path="/bestanden" element={<Navigate to="/materialen" replace />} />
+        <Route path="/materialen/folder/:folderId" element={<FolderView />} />
+        <Route path="/materialen/preview/:fileId" element={<FilePreview />} />
+        <Route path="/bestanden/folder/:folderId" element={<Navigate to="/materialen" replace />} />
+        <Route path="/bestanden/preview/:fileId" element={<Navigate to="/materialen" replace />} />
         <Route path="/notities" element={<Notities />} />
         <Route path="/ontdekken" element={<Navigate to="/communities" replace />} />
         <Route path="/communities" element={<Ontdekken />} />

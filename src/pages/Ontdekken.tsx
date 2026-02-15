@@ -112,6 +112,8 @@ export default function Ontdekken() {
   const { verifiedGroupIds } = useVerifiedGroups();
   const [activeView, setActiveView] = useState<"mijn" | "ontdekken">("mijn");
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const searchExpandedRef = useRef<HTMLInputElement>(null);
   const [searchResults, setSearchResults] = useState<SearchResultType[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [publications, setPublications] = useState<Publication[]>([]);
@@ -151,6 +153,12 @@ export default function Ontdekken() {
 
   const isUserVerified = (userId: string) => verifiedUserIds.includes(userId);
   const isGroupVerified = (groupId: string) => verifiedGroupIds.includes(groupId);
+
+  useEffect(() => {
+    if (searchExpanded && searchExpandedRef.current) {
+      searchExpandedRef.current.focus();
+    }
+  }, [searchExpanded]);
 
   useEffect(() => {
     if (activeView === "ontdekken") {
@@ -661,7 +669,16 @@ export default function Ontdekken() {
     <div className="w-full">
       {/* Toggle - Mijn Communities / Ontdekken + Search button - centered, no page title */}
       <div className="flex justify-center items-center gap-3 mb-8">
-        <div className="inline-flex bg-muted rounded-full p-1 border relative" style={{ minWidth: '400px' }}>
+        {/* Toggle - hidden when search expanded */}
+        <div
+          className="inline-flex bg-muted rounded-full p-1 border relative overflow-hidden transition-all duration-300 ease-out"
+          style={{
+            minWidth: searchExpanded ? '0px' : '400px',
+            maxWidth: searchExpanded ? '0px' : '400px',
+            opacity: searchExpanded ? 0 : 1,
+            padding: searchExpanded ? '0' : undefined,
+          }}
+        >
           {/* Sliding indicator */}
           <div 
             className="absolute top-1 bottom-1 rounded-full bg-background shadow-sm transition-all duration-300 ease-out"
@@ -691,15 +708,52 @@ export default function Ontdekken() {
             Ontdekken
           </button>
         </div>
-        {/* Round search button */}
-        <Button
-          variant="outline"
-          size="icon"
-          className="rounded-full h-[46px] w-[46px] bg-muted border hover:bg-muted/80"
-          onClick={() => setActiveView("ontdekken")}
+        {/* Expandable search button */}
+        <div
+          className={`flex items-center transition-all duration-300 ease-out ${
+            searchExpanded ? 'bg-muted rounded-full border px-4' : ''
+          }`}
+          style={{
+            width: searchExpanded ? '500px' : '46px',
+            height: '46px',
+          }}
         >
-          <Search className="w-5 h-5" />
-        </Button>
+          {searchExpanded && (
+            <Search className="w-5 h-5 text-muted-foreground flex-shrink-0 mr-2" />
+          )}
+          {searchExpanded ? (
+            <input
+              ref={searchExpandedRef}
+              type="text"
+              placeholder="Zoek accounts, groepen..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onBlur={() => {
+                if (!searchQuery) setSearchExpanded(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchQuery.length >= 2) {
+                  navigate(`/zoeken?q=${encodeURIComponent(searchQuery)}`);
+                  setSearchExpanded(false);
+                }
+                if (e.key === 'Escape') {
+                  setSearchQuery("");
+                  setSearchExpanded(false);
+                }
+              }}
+              className="flex-1 bg-transparent border-none outline-none text-sm h-full"
+            />
+          ) : (
+            <Button
+              variant="outline"
+              size="icon"
+              className="rounded-full h-[46px] w-[46px] bg-muted border hover:bg-muted/80"
+              onClick={() => setSearchExpanded(true)}
+            >
+              <Search className="w-5 h-5" />
+            </Button>
+          )}
+        </div>
       </div>
 
       {activeView === "mijn" ? (
