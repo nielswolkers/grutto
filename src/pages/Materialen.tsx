@@ -3,7 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, ChevronDown, Plus, Clock, Users } from "lucide-react";
+import { Search, ChevronDown, Plus, Clock, Users, BookOpen } from "lucide-react";
+import { getStudySets } from "@/lib/studyData";
+import { StudySet } from "@/types/study";
+import StudySetCard from "@/components/study/StudySetCard";
+import StudySetDetail from "@/components/study/StudySetDetail";
+import CreateStudySet from "@/components/study/CreateStudySet";
 import { toast } from "sonner";
 import { FileUpload } from "@/components/files/FileUpload";
 import { FileList } from "@/components/files/FileList";
@@ -90,6 +95,15 @@ const Materialen = () => {
   const [newSubjectEmoji, setNewSubjectEmoji] = useState("📚");
   const [newLessonName, setNewLessonName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+
+  // Study sets state (beam-mind-tool integration)
+  const [studySets, setStudySets] = useState<StudySet[]>([]);
+  const [selectedStudySetId, setSelectedStudySetId] = useState<string | null>(null);
+  const [showCreateStudySet, setShowCreateStudySet] = useState(false);
+
+  useEffect(() => {
+    setStudySets(getStudySets());
+  }, []);
 
   // Bestanden tab state
   const [fileActiveView, setFileActiveView] = useState<"recent" | "shared" | "favorites">("recent");
