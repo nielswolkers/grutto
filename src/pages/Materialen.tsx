@@ -96,6 +96,15 @@ const Materialen = () => {
   const [newLessonName, setNewLessonName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
+  // Study sets state (beam-mind-tool integration)
+  const [studySets, setStudySets] = useState<StudySet[]>([]);
+  const [selectedStudySetId, setSelectedStudySetId] = useState<string | null>(null);
+  const [showCreateStudySet, setShowCreateStudySet] = useState(false);
+
+  useEffect(() => {
+    setStudySets(getStudySets());
+  }, []);
+
   // Bestanden tab state
   const [fileActiveView, setFileActiveView] = useState<"recent" | "shared" | "favorites">("recent");
   const [fileSortBy, setFileSortBy] = useState<"name" | "date">("date");
