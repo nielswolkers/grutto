@@ -409,7 +409,28 @@ const Materialen = () => {
       </div>
 
       {/* ===== RECENT TAB ===== */}
-      {activeTab === "recent" && (
+      {activeTab === "recent" && selectedStudySetId && (
+        <StudySetDetail
+          setId={selectedStudySetId}
+          onBack={() => {
+            setSelectedStudySetId(null);
+            setStudySets(getStudySets());
+          }}
+        />
+      )}
+
+      {activeTab === "recent" && showCreateStudySet && (
+        <CreateStudySet
+          onBack={() => setShowCreateStudySet(false)}
+          onCreated={(id) => {
+            setShowCreateStudySet(false);
+            setStudySets(getStudySets());
+            setSelectedStudySetId(id);
+          }}
+        />
+      )}
+
+      {activeTab === "recent" && !selectedStudySetId && !showCreateStudySet && (
         <div>
           {/* Vakken selector bar + Voeg toe button */}
           <div className="flex items-center justify-between mb-6">
@@ -449,6 +470,10 @@ const Materialen = () => {
                   <Plus className="w-4 h-4 mr-2" />
                   Voeg vak toe
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowCreateStudySet(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Voeg studieset toe
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -471,7 +496,7 @@ const Materialen = () => {
 
           {/* Lesson cards */}
           {selectedSubjectId && lessons.length > 0 ? (
-            <div className="flex gap-6 flex-wrap">
+            <div className="flex gap-6 flex-wrap mb-8">
               {lessons
                 .filter(l => !searchQuery || l.name.toLowerCase().includes(searchQuery.toLowerCase()))
                 .map((lesson) => (
@@ -497,11 +522,31 @@ const Materialen = () => {
               ))}
             </div>
           ) : selectedSubjectId ? (
-            <div className="text-center py-12 text-muted-foreground">
+            <div className="text-center py-8 text-muted-foreground mb-8">
               <p className="text-lg font-medium">Nog geen lessen</p>
               <p className="text-sm">Maak een les aan om bestanden, video's en notities te organiseren.</p>
             </div>
-          ) : (
+          ) : null}
+
+          {/* Study sets section */}
+          {studySets.length > 0 && (
+            <>
+              <div className="flex items-center justify-between mb-4 mt-4">
+                <h2 className="text-[0.8rem] font-semibold text-muted-foreground">Studiesets</h2>
+              </div>
+              <div className="flex gap-6 flex-wrap">
+                {studySets
+                  .filter(s => !searchQuery || s.title.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map((set) => (
+                    <div key={set.id} className="w-[260px]">
+                      <StudySetCard set={set} onClick={() => setSelectedStudySetId(set.id)} />
+                    </div>
+                  ))}
+              </div>
+            </>
+          )}
+
+          {!selectedSubjectId && studySets.length === 0 && (
             <div className="text-center py-12 text-muted-foreground">
               <p className="text-lg font-medium">Maak eerst een vak aan</p>
               <p className="text-sm">Klik op 'Voeg toe' → 'Voeg vak toe' om te beginnen.</p>
@@ -509,6 +554,7 @@ const Materialen = () => {
           )}
         </div>
       )}
+
 
       {/* ===== BESTANDEN TAB ===== */}
       {activeTab === "bestanden" && (
