@@ -96,6 +96,24 @@
     --chart-3: 145 45% 40%;
     --chart-4: 145 40% 70%;
     --chart-5: 145 35% 35%;
+
+    /* Whiteboard tokens */
+    --canvas: 0 0% 95%;
+    --canvas-dots: 0 0% 85%;
+    --toolbar: 0 0% 100%;
+    --toolbar-foreground: 0 0% 30%;
+    --toolbar-active: var(--primary);
+    --toolbar-hover: 0 0% 96%;
+    --shadow-card: 0 1px 3px hsl(0 0% 0% / 0.04), 0 4px 12px hsl(0 0% 0% / 0.06);
+    --shadow-card-hover: 0 2px 8px hsl(0 0% 0% / 0.06), 0 8px 24px hsl(0 0% 0% / 0.1);
+    --shadow-toolbar: 0 2px 8px hsl(0 0% 0% / 0.04), 0 4px 16px hsl(0 0% 0% / 0.06);
+  }
+}
+
+@layer utilities {
+  .canvas-dots {
+    background-image: radial-gradient(circle, hsl(var(--canvas-dots)) 1px, transparent 1px);
+    background-size: 24px 24px;
   }
 }
 
