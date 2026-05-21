@@ -622,3 +622,26 @@ function NoteListItem({ note, isSelected, onClick, onPin, onDelete, formatDate, 
     </div>
   );
 }
+
+function NotitiesTabs({ activeView, setActiveView }: { activeView: "notities" | "whiteboard"; setActiveView: (v: "notities" | "whiteboard") => void }) {
+  return (
+    <div className="inline-flex bg-muted rounded-full p-1 border relative shadow-sm" style={{ minWidth: "260px" }}>
+      <div
+        className="absolute top-1 bottom-1 rounded-full bg-background shadow-sm transition-all duration-300 ease-out"
+        style={{ width: "calc(50% - 4px)", left: activeView === "notities" ? "4px" : "calc(50% + 0px)" }}
+      />
+      <button
+        onClick={() => setActiveView("notities")}
+        className={`flex-1 px-4 py-2 text-sm font-medium rounded-full transition-colors relative z-10 ${activeView === "notities" ? "text-foreground" : "text-muted-foreground"}`}
+      >
+        Notities
+      </button>
+      <button
+        onClick={() => setActiveView("whiteboard")}
+        className={`flex-1 px-4 py-2 text-sm font-medium rounded-full transition-colors relative z-10 ${activeView === "whiteboard" ? "text-foreground" : "text-muted-foreground"}`}
+      >
+        Whiteboard
+      </button>
+    </div>
+  );
+}
