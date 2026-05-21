@@ -77,7 +77,7 @@ export function Workspace() {
   }, [createBoard, activeBoardId]);
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-canvas">
+    <div className="relative w-full h-full overflow-hidden bg-canvas">
       <Header
         boardName={activeBoard.name}
         zoom={zoom}
