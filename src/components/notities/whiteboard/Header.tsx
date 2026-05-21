@@ -86,7 +86,7 @@ export function Header({
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="fixed top-0 left-0 right-0 z-50 h-14"
+        className="absolute top-0 left-0 right-0 z-50 h-14"
       >
         <div className="h-full px-4 flex items-center justify-between bg-toolbar/80 backdrop-blur-xl border-b border-border/50">
           {/* Left - Breadcrumbs */}
@@ -155,7 +155,7 @@ export function Header({
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="fixed top-16 left-1/2 -translate-x-1/2 z-[60] w-full max-w-md"
+            className="absolute top-16 left-1/2 -translate-x-1/2 z-[60] w-full max-w-md"
           >
             <div className="bg-card rounded-xl shadow-xl border border-border p-3">
               <div className="flex items-center gap-2">

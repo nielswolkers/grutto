@@ -31,7 +31,7 @@ export function Toolbar({ activeTool, onToolSelect }: ToolbarProps) {
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-      className="fixed top-14 left-0 right-0 z-40 h-12"
+      className="absolute top-14 left-0 right-0 z-40 h-12"
     >
       <div className="h-full px-4 flex items-center gap-1 bg-toolbar/80 backdrop-blur-xl border-b border-border/50">
         {tools.map((tool) => {
