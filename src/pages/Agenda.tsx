@@ -1378,22 +1378,22 @@ const Agenda = () => {
                             const isDraggedEvent = dragEventId === event.id;
                             const dragOffset = isDraggedEvent ? dragCurrentY - dragStartY : 0;
                             
-                              // Calculate overlap index for this event
+                              // Calculate overlap: keep base width, indent later events
                               const overlappingEvents = dayEvents.filter(other => {
                                 if (other.id === event.id) return false;
                                 return other.start < event.end && other.end > event.start;
                               });
                               const allOverlapping = [event, ...overlappingEvents].sort((a, b) => a.start.getTime() - b.start.getTime() || a.id.localeCompare(b.id));
                               const overlapIndex = allOverlapping.findIndex(e => e.id === event.id);
-                              const totalOverlapping = allOverlapping.length;
-                              const widthPercent = totalOverlapping > 1 ? 100 / totalOverlapping : 100;
-                              const leftPercent = overlapIndex * widthPercent;
+                              const indentPercent = 14;
+                              const leftPercent = overlapIndex * indentPercent;
+                              const widthPercent = Math.max(40, 100 - leftPercent);
 
                               return (
                               <div
                                 key={event.id}
                                 className={cn(
-                                  "absolute text-xs px-1.5 py-1 rounded-xl z-10 overflow-hidden border",
+                                  "absolute text-xs px-1.5 py-1 rounded-md z-10 overflow-hidden border",
                                   event.source === 'local' && "cursor-grab active:cursor-grabbing",
                                   isDraggedEvent && "opacity-75 shadow-lg"
                                 )}
@@ -1405,6 +1405,7 @@ const Agenda = () => {
                                   width: `${widthPercent}%`,
                                   top: `calc(${startHour * 48}px + ${style.top} + ${dragOffset}px)`,
                                   height: style.height,
+                                  zIndex: 10 + overlapIndex,
                                 }}
                                 onClick={(e) => handleEventClick(event, e)}
                                 onMouseDown={(e) => handleDragStart(event, e)}
@@ -1470,18 +1471,18 @@ const Agenda = () => {
                   
                   {/* Current time indicator line for day view */}
                   <div 
-                    className="absolute left-14 right-0 z-20 pointer-events-none h-0.5 bg-destructive"
-                    style={{ top: `${getCurrentTimePosition(64)}px` }}
+                    className="absolute right-0 z-20 pointer-events-none h-0.5 bg-destructive"
+                    style={{ top: `${getCurrentTimePosition(64)}px`, left: '64px' }}
                   />
                   
-                  <div className="absolute left-16 right-0 top-0">
+                  <div className="absolute right-0 top-0" style={{ left: '64px' }}>
                     {getEventsForHourRange(currentDate).map((event) => {
                       const startHour = event.start.getHours();
                       const style = getEventStyle(event, 64);
                       const isDraggedEvent = dragEventId === event.id;
                       const dragOffset = isDraggedEvent ? dragCurrentY - dragStartY : 0;
                       
-                      // Calculate overlap for day view
+                      // Calculate overlap: indent later events instead of shrinking equally
                       const dayViewEvents = getEventsForHourRange(currentDate);
                       const overlappingEvents = dayViewEvents.filter(other => {
                         if (other.id === event.id) return false;
@@ -1489,15 +1490,15 @@ const Agenda = () => {
                       });
                       const allOverlapping = [event, ...overlappingEvents].sort((a, b) => a.start.getTime() - b.start.getTime() || a.id.localeCompare(b.id));
                       const overlapIndex = allOverlapping.findIndex(e => e.id === event.id);
-                      const totalOverlapping = allOverlapping.length;
-                      const widthPercent = totalOverlapping > 1 ? 100 / totalOverlapping : 100;
-                      const leftPercent = overlapIndex * widthPercent;
+                      const indentPercent = 10;
+                      const leftPercent = overlapIndex * indentPercent;
+                      const widthPercent = Math.max(50, 100 - leftPercent);
 
                       return (
                         <div
                           key={event.id}
                           className={cn(
-                            "absolute text-sm px-3 py-1.5 rounded-xl z-10 overflow-hidden border",
+                            "absolute text-sm px-3 py-1.5 rounded-md overflow-hidden border",
                             event.source === 'local' && "cursor-grab active:cursor-grabbing",
                             isDraggedEvent && "opacity-75 shadow-lg"
                           )}
@@ -1509,6 +1510,7 @@ const Agenda = () => {
                             width: `${widthPercent}%`,
                             top: `calc(${startHour * 64}px + ${style.top} + ${dragOffset}px)`,
                             height: style.height,
+                            zIndex: 10 + overlapIndex,
                           }}
                           onClick={(e) => handleEventClick(event, e)}
                           onMouseDown={(e) => handleDragStart(event, e)}

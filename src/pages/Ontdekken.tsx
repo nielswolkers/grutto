@@ -187,7 +187,7 @@ export default function Ontdekken() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeView]);
+  }, [activeView, user]);
 
   // Handle navigation with openCommunityId state - redirect to community page
   useEffect(() => {

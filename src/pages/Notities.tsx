@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { Workspace } from "@/components/notities/whiteboard/Workspace";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -55,6 +56,7 @@ interface Note {
 export default function Notities() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [activeView, setActiveView] = useState<"notities" | "whiteboard">("notities");
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -309,8 +311,22 @@ export default function Notities() {
     );
   }
 
+  if (activeView === "whiteboard") {
+    return (
+      <div className="h-[calc(100vh-6rem)] -mt-6 -mx-6 relative">
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[70]">
+          <NotitiesTabs activeView={activeView} setActiveView={setActiveView} />
+        </div>
+        <Workspace />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-[calc(100vh-6rem)] -mt-6 -mx-6">
+    <div className="flex h-[calc(100vh-6rem)] -mt-6 -mx-6 relative">
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50">
+        <NotitiesTabs activeView={activeView} setActiveView={setActiveView} />
+      </div>
       {/* Sidebar - Folders & Notes List */}
       <div className="w-80 border-r border-border flex flex-col bg-muted/30">
         {/* Header */}
@@ -603,6 +619,29 @@ function NoteListItem({ note, isSelected, onClick, onPin, onDelete, formatDate, 
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+    </div>
+  );
+}
+
+function NotitiesTabs({ activeView, setActiveView }: { activeView: "notities" | "whiteboard"; setActiveView: (v: "notities" | "whiteboard") => void }) {
+  return (
+    <div className="inline-flex bg-muted rounded-full p-1 border relative shadow-sm" style={{ minWidth: "260px" }}>
+      <div
+        className="absolute top-1 bottom-1 rounded-full bg-background shadow-sm transition-all duration-300 ease-out"
+        style={{ width: "calc(50% - 4px)", left: activeView === "notities" ? "4px" : "calc(50% + 0px)" }}
+      />
+      <button
+        onClick={() => setActiveView("notities")}
+        className={`flex-1 px-4 py-2 text-sm font-medium rounded-full transition-colors relative z-10 ${activeView === "notities" ? "text-foreground" : "text-muted-foreground"}`}
+      >
+        Notities
+      </button>
+      <button
+        onClick={() => setActiveView("whiteboard")}
+        className={`flex-1 px-4 py-2 text-sm font-medium rounded-full transition-colors relative z-10 ${activeView === "whiteboard" ? "text-foreground" : "text-muted-foreground"}`}
+      >
+        Whiteboard
+      </button>
     </div>
   );
 }
