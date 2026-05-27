@@ -421,6 +421,8 @@ const Materialen = () => {
 
       {activeTab === "recent" && showCreateStudySet && (
         <CreateStudySet
+          subjects={subjects}
+          defaultSubjectId={selectedSubjectId}
           onBack={() => setShowCreateStudySet(false)}
           onCreated={(id) => {
             setShowCreateStudySet(false);
