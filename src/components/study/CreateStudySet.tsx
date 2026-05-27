@@ -1,29 +1,43 @@
 import { useState } from "react";
 import { StudySet, Flashcard } from "@/types/study";
-import { saveStudySet, COLOR_MAP } from "@/lib/studyData";
+import { saveStudySet } from "@/lib/studyData";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2, Save, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-const COLORS = ["indigo", "orange", "teal", "rose", "violet", "sky"];
 const EMOJIS = ["📚", "🧬", "🌍", "🇪🇸", "🔢", "⚛️", "🎨", "💡", "🏛️", "🌱", "🎵", "💻"];
 
 function generateId() {
   return Math.random().toString(36).slice(2, 9);
 }
 
+interface SubjectOption {
+  id: string;
+  name: string;
+  emoji: string;
+}
+
 interface Props {
   onBack: () => void;
   onCreated: (id: string) => void;
+  subjects: SubjectOption[];
+  defaultSubjectId?: string | null;
 }
 
-export default function CreateStudySet({ onBack, onCreated }: Props) {
+export default function CreateStudySet({ onBack, onCreated, subjects, defaultSubjectId }: Props) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [emoji, setEmoji] = useState("📚");
-  const [color, setColor] = useState("indigo");
+  const [subjectId, setSubjectId] = useState<string>(defaultSubjectId || "");
   const [cards, setCards] = useState<Flashcard[]>([
     { id: generateId(), term: "", definition: "" },
     { id: generateId(), term: "", definition: "" },
@@ -32,6 +46,7 @@ export default function CreateStudySet({ onBack, onCreated }: Props) {
 
   function handleSave() {
     if (!title.trim()) { toast.error("Voeg een titel toe"); return; }
+    if (!subjectId) { toast.error("Kies een vak"); return; }
     const validCards = cards.filter(c => c.term.trim() && c.definition.trim());
     if (validCards.length < 2) { toast.error("Voeg minstens 2 kaarten toe"); return; }
 
@@ -40,7 +55,8 @@ export default function CreateStudySet({ onBack, onCreated }: Props) {
       title: title.trim(),
       description: description.trim(),
       emoji,
-      color,
+      color: "indigo",
+      subjectId,
       cards: validCards,
       createdAt: Date.now(),
     };
@@ -67,10 +83,24 @@ export default function CreateStudySet({ onBack, onCreated }: Props) {
         <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Titel van je set" className="text-lg font-semibold" />
         <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Beschrijving (optioneel)" />
 
-        <div className="flex flex-wrap gap-2">
-          {COLORS.map(c => (
-            <button key={c} onClick={() => setColor(c)} className={cn("w-8 h-8 rounded-full bg-gradient-to-br", COLOR_MAP[c], color === c && "ring-2 ring-offset-2 ring-primary")} />
-          ))}
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Vak</label>
+          <Select value={subjectId} onValueChange={setSubjectId}>
+            <SelectTrigger className="rounded-xl">
+              <SelectValue placeholder="Kies een vak" />
+            </SelectTrigger>
+            <SelectContent>
+              {subjects.length === 0 ? (
+                <SelectItem value="__none" disabled>Geen vakken — maak er eerst een aan</SelectItem>
+              ) : (
+                subjects.map(s => (
+                  <SelectItem key={s.id} value={s.id}>
+                    <span className="mr-2">{s.emoji}</span>{s.name}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-3">
