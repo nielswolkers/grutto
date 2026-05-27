@@ -98,7 +98,7 @@ export default function QuizMode({ cards, onFinish }: Props) {
   }
 
   return (
-    <div className="max-w-xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <span>Vraag {current + 1} / {total}</span>
         <div className="flex gap-2">
@@ -111,27 +111,27 @@ export default function QuizMode({ cards, onFinish }: Props) {
         </div>
       </div>
 
-      <div className="bg-card border rounded-2xl p-6">
-        <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider">Wat betekent:</p>
-        <p className="text-xl font-semibold mb-6">{q.card.term}</p>
+      <div className="bg-card border rounded-2xl p-12 min-h-[440px]">
+        <p className="text-sm text-muted-foreground mb-3 uppercase tracking-wider">Wat betekent:</p>
+        <p className="text-3xl font-semibold mb-8">{q.card.term}</p>
 
         {quizType === "multiple" ? (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {q.options.map((opt: string, idx: number) => (
               <button
                 key={idx}
                 onClick={() => handleSelect(idx)}
                 disabled={answered}
                 className={cn(
-                  "w-full text-left px-4 py-3 rounded-xl border text-sm transition-colors",
+                  "w-full text-left px-5 py-4 rounded-xl border text-base transition-colors",
                   !answered && "hover:border-primary hover:bg-primary/5",
                   answered && idx === q.correct && "border-emerald-500 bg-emerald-50",
                   answered && selected === idx && idx !== q.correct && "border-destructive bg-destructive/5"
                 )}
               >
                 <div className="flex items-center gap-2">
-                  {answered && idx === q.correct && <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />}
-                  {answered && selected === idx && idx !== q.correct && <XCircle className="w-4 h-4 text-destructive shrink-0" />}
+                  {answered && idx === q.correct && <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />}
+                  {answered && selected === idx && idx !== q.correct && <XCircle className="w-5 h-5 text-destructive shrink-0" />}
                   <span className="line-clamp-3">{opt}</span>
                 </div>
               </button>
@@ -145,20 +145,20 @@ export default function QuizMode({ cards, onFinish }: Props) {
               onChange={(e) => setOpenAnswer(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleOpenSubmit()}
               disabled={answered}
-              placeholder="Typ je antwoord..."
+              placeholder="Typ je antwoord en druk Enter..."
               className={cn(
-                "w-full px-4 py-3 rounded-xl border text-sm outline-none",
+                "w-full px-5 py-4 rounded-xl border text-lg outline-none",
                 answered && isCorrect && "border-emerald-500 bg-emerald-50",
                 answered && !isCorrect && "border-destructive bg-destructive/5"
               )}
             />
             {answered && !isCorrect && (
-              <p className="text-sm text-destructive flex items-center gap-1">
-                <XCircle className="w-4 h-4" /> {q.card.definition}
+              <p className="text-base text-destructive flex items-center gap-1">
+                <XCircle className="w-5 h-5" /> {q.card.definition}
               </p>
             )}
             {!answered && (
-              <Button onClick={handleOpenSubmit} disabled={!openAnswer.trim()} className="w-full rounded-xl">
+              <Button onClick={handleOpenSubmit} disabled={!openAnswer.trim()} className="w-full rounded-xl h-12 text-base">
                 Controleer
               </Button>
             )}
