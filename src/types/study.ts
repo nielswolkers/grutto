@@ -13,6 +13,7 @@ export interface StudySet {
   createdAt: number;
   lastStudied?: number;
   color: string;
+  subjectId?: string;
 }
 
 export type StudyMode = "flashcards" | "quiz" | "learn" | "match";
