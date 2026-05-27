@@ -312,7 +312,13 @@ export default function StudySetDetail({ setId, onBack }: Props) {
             <RotateCcw className="w-4 h-4" /> Shuffle
           </Button>
         </div>
-        <FlashCard card={cards[cardIndex]} index={cardIndex} total={cards.length} />
+        <FlashCard
+          card={cards[cardIndex]}
+          index={cardIndex}
+          total={cards.length}
+          onPrev={() => setCardIndex(c => Math.max(0, c - 1))}
+          onNext={() => setCardIndex(c => Math.min(cards.length - 1, c + 1))}
+        />
         <div className="flex justify-center gap-4">
           <Button variant="outline" disabled={cardIndex === 0} onClick={() => setCardIndex(c => c - 1)} className="rounded-full">
             <ArrowLeft className="w-4 h-4" />
