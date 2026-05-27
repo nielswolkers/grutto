@@ -421,6 +421,8 @@ const Materialen = () => {
 
       {activeTab === "recent" && showCreateStudySet && (
         <CreateStudySet
+          subjects={subjects}
+          defaultSubjectId={selectedSubjectId}
           onBack={() => setShowCreateStudySet(false)}
           onCreated={(id) => {
             setShowCreateStudySet(false);
@@ -462,15 +464,11 @@ const Materialen = () => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setShowCreateLesson(true)} disabled={!selectedSubjectId}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Voeg Les toe
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setShowCreateSubject(true)}>
                   <Plus className="w-4 h-4 mr-2" />
                   Voeg vak toe
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowCreateStudySet(true)}>
+                <DropdownMenuItem onClick={() => setShowCreateStudySet(true)} disabled={subjects.length === 0}>
                   <Plus className="w-4 h-4 mr-2" />
                   Voeg studieset toe
                 </DropdownMenuItem>
@@ -494,72 +492,54 @@ const Materialen = () => {
             </div>
           </div>
 
-          {/* Combined lesson + study set cards */}
-          {(selectedSubjectId && lessons.length > 0) || studySets.length > 0 ? (
-            <div className="flex gap-6 flex-wrap mb-8">
-              {selectedSubjectId && lessons
-                .filter(l => !searchQuery || l.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                .map((lesson) => (
-                <Card
-                  key={lesson.id}
-                  className="w-[260px] cursor-pointer hover:shadow-md transition-shadow border-dashed border-2"
-                  onClick={() => navigate(`/materialen/les/${lesson.id}`)}
-                >
-                  <CardContent className="p-5">
-                    <div className="h-24 flex items-center justify-center mb-3">
-                      <span className="text-5xl">{selectedSubject?.emoji || "📚"}</span>
-                    </div>
-                    <h3 className="font-semibold text-base truncate">{lesson.name}</h3>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-xs text-muted-foreground">{selectedSubject?.name}</span>
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {getTimeAgo(lesson.updated_at)}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-
-              {studySets
-                .filter(s => !searchQuery || s.title.toLowerCase().includes(searchQuery.toLowerCase()))
-                .map((set) => (
-                <Card
-                  key={set.id}
-                  className="w-[260px] cursor-pointer hover:shadow-md transition-shadow border-dashed border-2"
-                  onClick={() => setSelectedStudySetId(set.id)}
-                >
-                  <CardContent className="p-5">
-                    <div className="h-24 flex items-center justify-center mb-3">
-                      <span className="text-5xl">{set.emoji}</span>
-                    </div>
-                    <h3 className="font-semibold text-base truncate">{set.title}</h3>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-xs text-muted-foreground">{set.cards.length} kaarten</span>
-                      {set.lastStudied && (
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {getTimeAgo(new Date(set.lastStudied).toISOString())}
-                        </span>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : selectedSubjectId ? (
-            <div className="text-center py-8 text-muted-foreground mb-8">
-              <p className="text-lg font-medium">Nog geen lessen</p>
-              <p className="text-sm">Maak een les aan om bestanden, video's en notities te organiseren.</p>
-            </div>
-          ) : null}
-
-          {!selectedSubjectId && studySets.length === 0 && (
-            <div className="text-center py-12 text-muted-foreground">
-              <p className="text-lg font-medium">Maak eerst een vak aan</p>
-              <p className="text-sm">Klik op 'Voeg toe' → 'Voeg vak toe' om te beginnen.</p>
-            </div>
-          )}
+          {/* Study set cards, filtered by selected vak & sorted */}
+          {(() => {
+            const filtered = studySets
+              .filter(s => !selectedSubjectId || s.subjectId === selectedSubjectId)
+              .filter(s => !searchQuery || s.title.toLowerCase().includes(searchQuery.toLowerCase()))
+              .sort((a, b) =>
+                sortBy === "name"
+                  ? a.title.localeCompare(b.title)
+                  : (b.lastStudied || b.createdAt) - (a.lastStudied || a.createdAt)
+              );
+            return filtered.length > 0 ? (
+              <div className="flex gap-6 flex-wrap mb-8">
+                {filtered.map((set) => (
+                  <Card
+                    key={set.id}
+                    className="w-[260px] cursor-pointer hover:shadow-md transition-shadow border-dashed border-2"
+                    onClick={() => setSelectedStudySetId(set.id)}
+                  >
+                    <CardContent className="p-5">
+                      <div className="h-24 flex items-center justify-center mb-3">
+                        <span className="text-5xl">{set.emoji}</span>
+                      </div>
+                      <h3 className="font-semibold text-base truncate">{set.title}</h3>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-xs text-muted-foreground">{set.cards.length} kaarten</span>
+                        {set.lastStudied && (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {getTimeAgo(new Date(set.lastStudied).toISOString())}
+                          </span>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : selectedSubjectId ? (
+              <div className="text-center py-8 text-muted-foreground mb-8">
+                <p className="text-lg font-medium">Nog geen studiesets</p>
+                <p className="text-sm">Maak een studieset aan voor dit vak.</p>
+              </div>
+            ) : (
+              <div className="text-center py-12 text-muted-foreground">
+                <p className="text-lg font-medium">Maak eerst een vak aan</p>
+                <p className="text-sm">Klik op 'Voeg toe' → 'Voeg vak toe' om te beginnen.</p>
+              </div>
+            );
+          })()}
         </div>
       )}
 

@@ -225,11 +225,6 @@ export default function StudySetDetail({ setId, onBack }: Props) {
           <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="Titel van je set" className="text-lg font-semibold" />
           <Input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="Beschrijving" />
 
-          <div className="flex flex-wrap gap-2">
-            {COLORS.map(c => (
-              <button key={c} onClick={() => setEditColor(c)} className={cn("w-8 h-8 rounded-full bg-gradient-to-br", COLOR_MAP[c], editColor === c && "ring-2 ring-offset-2 ring-primary")} />
-            ))}
-          </div>
 
           <div className="space-y-3">
             {editCards.map((card, i) => (
@@ -317,7 +312,13 @@ export default function StudySetDetail({ setId, onBack }: Props) {
             <RotateCcw className="w-4 h-4" /> Shuffle
           </Button>
         </div>
-        <FlashCard card={cards[cardIndex]} index={cardIndex} total={cards.length} />
+        <FlashCard
+          card={cards[cardIndex]}
+          index={cardIndex}
+          total={cards.length}
+          onPrev={() => setCardIndex(c => Math.max(0, c - 1))}
+          onNext={() => setCardIndex(c => Math.min(cards.length - 1, c + 1))}
+        />
         <div className="flex justify-center gap-4">
           <Button variant="outline" disabled={cardIndex === 0} onClick={() => setCardIndex(c => c - 1)} className="rounded-full">
             <ArrowLeft className="w-4 h-4" />

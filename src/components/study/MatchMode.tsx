@@ -75,26 +75,26 @@ export default function MatchMode({ cards, onFinish }: Props) {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span className="flex items-center gap-1"><Timer className="w-4 h-4" /> {elapsed}s</span>
+    <div className="max-w-3xl mx-auto space-y-6">
+      <div className="flex items-center justify-between text-base text-muted-foreground">
+        <span className="flex items-center gap-1"><Timer className="w-5 h-5" /> {elapsed}s</span>
         <span>{mistakes} fouten</span>
       </div>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-4">
         {tiles.map((tile) => (
           <button
             key={tile.id}
             onClick={() => handleTileClick(tile)}
             disabled={matched.has(tile.id)}
             className={cn(
-              "p-3 rounded-xl border text-sm text-center min-h-[60px] transition-all",
+              "p-5 rounded-2xl border text-base text-center min-h-[120px] flex items-center justify-center transition-all",
               matched.has(tile.id) && "opacity-30 scale-95 border-emerald-300 bg-emerald-50",
               selected === tile.id && "border-primary bg-primary/10 ring-2 ring-primary",
               wrong.has(tile.id) && "border-destructive bg-destructive/10 animate-pulse",
               !matched.has(tile.id) && selected !== tile.id && !wrong.has(tile.id) && "hover:border-primary/50 hover:bg-muted/50"
             )}
           >
-            <span className="line-clamp-3">{tile.text}</span>
+            <span className="line-clamp-4">{tile.text}</span>
           </button>
         ))}
       </div>

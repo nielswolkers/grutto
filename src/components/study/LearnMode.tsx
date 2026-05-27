@@ -67,14 +67,14 @@ export default function LearnMode({ cards, onFinish }: Props) {
   }
 
   return (
-    <div className="max-w-xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <span>Vraag {current + 1} / {total}</span>
         <span>{score} goed</span>
       </div>
-      <div className="bg-card border rounded-2xl p-6">
-        <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider">Wat betekent:</p>
-        <p className="text-xl font-semibold mb-6">{card.term}</p>
+      <div className="bg-card border rounded-2xl p-12 min-h-[440px] flex flex-col justify-center">
+        <p className="text-sm text-muted-foreground mb-3 uppercase tracking-wider">Wat betekent:</p>
+        <p className="text-3xl font-semibold mb-8">{card.term}</p>
         <div className="space-y-3">
           <input
             ref={inputRef}
@@ -82,21 +82,21 @@ export default function LearnMode({ cards, onFinish }: Props) {
             onChange={(e) => setAnswer(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && checkAnswer()}
             disabled={answered}
-            placeholder="Typ je antwoord..."
+            placeholder="Typ je antwoord en druk Enter..."
             className={cn(
-              "w-full px-4 py-3 rounded-xl border text-sm outline-none transition-colors",
+              "w-full px-5 py-4 rounded-xl border text-lg outline-none transition-colors",
               answered && isCorrect && "border-emerald-500 bg-emerald-50",
               answered && !isCorrect && "border-destructive bg-destructive/5"
             )}
           />
           {answered && (
-            <div className={cn("flex items-center gap-2 text-sm font-medium", isCorrect ? "text-emerald-600" : "text-destructive")}>
-              {isCorrect ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+            <div className={cn("flex items-center gap-2 text-base font-medium", isCorrect ? "text-emerald-600" : "text-destructive")}>
+              {isCorrect ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
               {isCorrect ? "Correct!" : `Fout — ${card.definition}`}
             </div>
           )}
           {!answered && (
-            <Button onClick={checkAnswer} disabled={!answer.trim()} className="w-full rounded-xl">
+            <Button onClick={checkAnswer} disabled={!answer.trim()} className="w-full rounded-xl h-12 text-base">
               Controleer
             </Button>
           )}
