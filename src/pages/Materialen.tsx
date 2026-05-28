@@ -768,6 +768,27 @@ const Materialen = () => {
         onSuccess={handleFolderCreated}
         userId={user.id}
       />
+
+      <SubjectEditDialog
+        open={showEditSubjects}
+        onClose={() => setShowEditSubjects(false)}
+        subjects={subjects}
+        onChanged={async () => {
+          await loadSubjects();
+        }}
+      />
+
+      <ImportStudySetDialog
+        open={showImportStudySet}
+        onClose={() => setShowImportStudySet(false)}
+        subjects={subjects}
+        defaultSubjectId={selectedSubjectId}
+        onImported={(id) => {
+          setStudySets(getStudySets());
+          setSelectedStudySetId(id);
+        }}
+      />
+
     </div>
   );
 };
