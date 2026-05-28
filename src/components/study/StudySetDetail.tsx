@@ -20,12 +20,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type ViewMode = "detail" | "flashcards" | "quiz" | "learn" | "match" | "edit" | "result";
+
+interface SubjectOption { id: string; name: string; emoji: string; }
 
 interface Props {
   setId: string;
   onBack: () => void;
+  subjects?: SubjectOption[];
 }
 
 const COLORS = ["indigo", "orange", "teal", "rose", "violet", "sky"];
@@ -35,7 +45,7 @@ function generateId() {
   return Math.random().toString(36).slice(2, 9);
 }
 
-export default function StudySetDetail({ setId, onBack }: Props) {
+export default function StudySetDetail({ setId, onBack, subjects = [] }: Props) {
   const [set, setSet] = useState<StudySet | undefined>(getStudySet(setId));
   const [viewMode, setViewMode] = useState<ViewMode>("detail");
   const [cardIndex, setCardIndex] = useState(0);
@@ -53,6 +63,7 @@ export default function StudySetDetail({ setId, onBack }: Props) {
   const [editDescription, setEditDescription] = useState(set?.description || "");
   const [editEmoji, setEditEmoji] = useState(set?.emoji || "📚");
   const [editColor, setEditColor] = useState(set?.color || "indigo");
+  const [editSubjectId, setEditSubjectId] = useState<string>(set?.subjectId || "");
   const [editCards, setEditCards] = useState<Flashcard[]>(set?.cards || [{ id: generateId(), term: "", definition: "" }, { id: generateId(), term: "", definition: "" }]);
 
   useEffect(() => {
@@ -104,6 +115,7 @@ export default function StudySetDetail({ setId, onBack }: Props) {
       description: editDescription.trim(),
       emoji: editEmoji,
       color: editColor,
+      subjectId: editSubjectId || set!.subjectId,
       cards: validCards,
     };
     saveStudySet(updated);

@@ -416,6 +416,7 @@ const Materialen = () => {
       {activeTab === "recent" && selectedStudySetId && (
         <StudySetDetail
           setId={selectedStudySetId}
+          subjects={subjects}
           onBack={() => {
             setSelectedStudySetId(null);
             setStudySets(getStudySets());
