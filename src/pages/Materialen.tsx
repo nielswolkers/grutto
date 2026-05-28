@@ -3,12 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, ChevronDown, Plus, Clock, Users, BookOpen } from "lucide-react";
+import { Search, ChevronDown, Plus, Clock, Users, BookOpen, Pencil, Sparkles } from "lucide-react";
 import { getStudySets } from "@/lib/studyData";
 import { StudySet } from "@/types/study";
 import StudySetCard from "@/components/study/StudySetCard";
 import StudySetDetail from "@/components/study/StudySetDetail";
 import CreateStudySet from "@/components/study/CreateStudySet";
+import SubjectEditDialog from "@/components/study/SubjectEditDialog";
+import ImportStudySetDialog from "@/components/study/ImportStudySetDialog";
 import { toast } from "sonner";
 import { FileUpload } from "@/components/files/FileUpload";
 import { FileList } from "@/components/files/FileList";
@@ -35,7 +37,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import { nl } from "date-fns/locale";
 
 const MAIN_TABS = [
-  { key: "recent" as const, label: "Recent" },
+  { key: "recent" as const, label: "Studiesets" },
   { key: "bestanden" as const, label: "Bestanden" },
   { key: "studiegroep" as const, label: "Studiegroep" },
 ];
@@ -100,6 +102,8 @@ const Materialen = () => {
   const [studySets, setStudySets] = useState<StudySet[]>([]);
   const [selectedStudySetId, setSelectedStudySetId] = useState<string | null>(null);
   const [showCreateStudySet, setShowCreateStudySet] = useState(false);
+  const [showEditSubjects, setShowEditSubjects] = useState(false);
+  const [showImportStudySet, setShowImportStudySet] = useState(false);
 
   useEffect(() => {
     setStudySets(getStudySets());
@@ -440,7 +444,9 @@ const Materialen = () => {
               {subjects.map((subject) => (
                 <button
                   key={subject.id}
-                  onClick={() => setSelectedSubjectId(subject.id)}
+                  onClick={() =>
+                    setSelectedSubjectId((prev) => (prev === subject.id ? null : subject.id))
+                  }
                   className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
                     selectedSubjectId === subject.id
                       ? "bg-muted border border-border text-foreground"
@@ -456,29 +462,45 @@ const Materialen = () => {
               )}
             </div>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button className="rounded-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-5 flex-shrink-0">
-                  Voeg toe
-                  <ChevronDown className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setShowCreateSubject(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Voeg vak toe
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowCreateStudySet(true)} disabled={subjects.length === 0}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Voeg studieset toe
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button className="rounded-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-5">
+                    Voeg toe
+                    <ChevronDown className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setShowCreateSubject(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Voeg vak toe
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowCreateStudySet(true)} disabled={subjects.length === 0}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Voeg studieset toe
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowImportStudySet(true)} disabled={subjects.length === 0}>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Importeer
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-full h-10 w-10"
+                onClick={() => setShowEditSubjects(true)}
+                title="Vakken bewerken"
+                disabled={subjects.length === 0}
+              >
+                <Pencil className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
 
-          {/* Sorting + Recent label */}
+          {/* Sorting + label */}
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[0.8rem] font-semibold text-muted-foreground">Recent</h2>
+            <h2 className="text-[0.8rem] font-semibold text-muted-foreground">Studiesets</h2>
             <div className="flex items-center gap-2 text-sm">
               <span className="text-muted-foreground">Sorteren:</span>
               <select
