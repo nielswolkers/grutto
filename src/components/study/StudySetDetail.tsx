@@ -154,6 +154,7 @@ export default function StudySetDetail({ setId, onBack, subjects = [] }: Props) 
               setEditDescription(set.description);
               setEditEmoji(set.emoji);
               setEditColor(set.color);
+              setEditSubjectId(set.subjectId || "");
               setEditCards(set.cards);
               setViewMode("edit");
             }}>
@@ -236,6 +237,25 @@ export default function StudySetDetail({ setId, onBack, subjects = [] }: Props) 
           </div>
           <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="Titel van je set" className="text-lg font-semibold" />
           <Input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="Beschrijving" />
+
+          {subjects.length > 0 && (
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Vak</label>
+              <Select value={editSubjectId} onValueChange={setEditSubjectId}>
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder="Kies een vak" />
+                </SelectTrigger>
+                <SelectContent>
+                  {subjects.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      <span className="mr-2">{s.emoji}</span>{s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
 
 
           <div className="space-y-3">
