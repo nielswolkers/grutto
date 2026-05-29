@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { Flashcard } from "@/types/study";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { checkAnswer, diffSegments, AnswerVerdict } from "@/lib/answerCheck";
 
 interface Props {
   cards: Flashcard[];
@@ -18,7 +19,7 @@ export default function LearnMode({ cards, onFinish }: Props) {
   const [current, setCurrent] = useState(0);
   const [answer, setAnswer] = useState("");
   const [answered, setAnswered] = useState(false);
-  const [isCorrect, setIsCorrect] = useState(false);
+  const [verdict, setVerdict] = useState<AnswerVerdict>("wrong");
   const [score, setScore] = useState(0);
   const [wrongCards, setWrongCards] = useState<Array<{ card: Flashcard; userAnswer: string }>>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -40,31 +41,37 @@ export default function LearnMode({ cards, onFinish }: Props) {
   const card = queue[current];
   const total = queue.length;
 
-  function checkAnswer() {
+  function check() {
     if (answered) return;
-    const userTrimmed = answer.trim().toLowerCase();
-    const correctTrimmed = card.definition.trim().toLowerCase();
-    const correct = userTrimmed === correctTrimmed ||
-      (userTrimmed.length > 3 && correctTrimmed.includes(userTrimmed)) ||
-      (userTrimmed.length > 3 && userTrimmed.includes(correctTrimmed));
-
+    const { verdict: v } = checkAnswer(answer, card.definition);
     setAnswered(true);
-    setIsCorrect(correct);
-    if (correct) setScore(s => s + 1);
-    else setWrongCards(prev => [...prev, { card, userAnswer: answer }]);
+    setVerdict(v);
+    const isWrong = v === "wrong";
+    if (v === "correct") setScore(s => s + 1);
+    if (isWrong) setWrongCards(prev => [...prev, { card, userAnswer: answer }]);
 
     autoRef.current = setTimeout(() => {
       if (current + 1 >= total) {
-        onFinish(correct ? score + 1 : score, total, correct ? wrongCards : [...wrongCards, { card, userAnswer: answer }]);
+        onFinish(
+          v === "correct" ? score + 1 : score,
+          total,
+          isWrong ? [...wrongCards, { card, userAnswer: answer }] : wrongCards
+        );
       } else {
         setCurrent(c => c + 1);
         setAnswer("");
         setAnswered(false);
-        setIsCorrect(false);
+        setVerdict("wrong");
         inputRef.current?.focus();
       }
-    }, 1500);
+    }, v === "correct" ? 1200 : 2200);
   }
+
+  const colorClass =
+    !answered ? "" :
+    verdict === "correct" ? "border-emerald-500 bg-emerald-50" :
+    verdict === "partial" ? "border-orange-400 bg-orange-50" :
+    "border-destructive bg-destructive/5";
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -80,23 +87,48 @@ export default function LearnMode({ cards, onFinish }: Props) {
             ref={inputRef}
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && checkAnswer()}
+            onKeyDown={(e) => e.key === "Enter" && check()}
             disabled={answered}
             placeholder="Typ je antwoord en druk Enter..."
             className={cn(
               "w-full px-5 py-4 rounded-xl border text-lg outline-none transition-colors",
-              answered && isCorrect && "border-emerald-500 bg-emerald-50",
-              answered && !isCorrect && "border-destructive bg-destructive/5"
+              colorClass
             )}
           />
-          {answered && (
-            <div className={cn("flex items-center gap-2 text-base font-medium", isCorrect ? "text-emerald-600" : "text-destructive")}>
-              {isCorrect ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
-              {isCorrect ? "Correct!" : `Fout — ${card.definition}`}
+          {answered && verdict === "correct" && (
+            <div className="flex items-center gap-2 text-base font-medium text-emerald-600">
+              <CheckCircle2 className="w-5 h-5" /> Correct!
+            </div>
+          )}
+          {answered && verdict === "partial" && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-base font-medium text-orange-600">
+                <AlertCircle className="w-5 h-5" /> Bijna goed — let op de verschillen:
+              </div>
+              <p className="text-base">
+                {diffSegments(answer, card.definition).map((seg, i) => (
+                  <span
+                    key={i}
+                    className={cn(
+                      seg.type === "same" && "text-emerald-700",
+                      seg.type === "missing" && "text-orange-600 font-semibold underline decoration-orange-400",
+                      seg.type === "extra" && "text-destructive line-through"
+                    )}
+                  >
+                    {seg.text}
+                  </span>
+                ))}
+              </p>
+              <p className="text-xs text-muted-foreground">Correct: {card.definition}</p>
+            </div>
+          )}
+          {answered && verdict === "wrong" && (
+            <div className="flex items-center gap-2 text-base font-medium text-destructive">
+              <XCircle className="w-5 h-5" /> Fout — {card.definition}
             </div>
           )}
           {!answered && (
-            <Button onClick={checkAnswer} disabled={!answer.trim()} className="w-full rounded-xl h-12 text-base">
+            <Button onClick={check} disabled={!answer.trim()} className="w-full rounded-xl h-12 text-base">
               Controleer
             </Button>
           )}
