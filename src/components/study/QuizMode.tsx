@@ -26,6 +26,7 @@ export default function QuizMode({ cards, onFinish }: Props) {
   const [score, setScore] = useState(0);
   const [answered, setAnswered] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
+  const [openVerdict, setOpenVerdict] = useState<AnswerVerdict>("wrong");
   const [wrongCards, setWrongCards] = useState<Array<{ card: Flashcard; userAnswer: string }>>([]);
   const autoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
