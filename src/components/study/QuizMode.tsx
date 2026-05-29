@@ -74,17 +74,16 @@ export default function QuizMode({ cards, onFinish }: Props) {
 
   function handleOpenSubmit() {
     if (answered) return;
-    const userTrimmed = openAnswer.trim().toLowerCase();
-    const correctTrimmed = q.card.definition.trim().toLowerCase();
-    const correct = userTrimmed === correctTrimmed || 
-      (userTrimmed.length > 3 && correctTrimmed.includes(userTrimmed));
+    const { verdict } = checkAnswer(openAnswer, q.card.definition);
+    const correct = verdict === "correct";
 
     setAnswered(true);
     setIsCorrect(correct);
+    setOpenVerdict(verdict);
     if (correct) setScore(s => s + 1);
-    else setWrongCards(prev => [...prev, { card: q.card, userAnswer: openAnswer }]);
+    if (verdict === "wrong") setWrongCards(prev => [...prev, { card: q.card, userAnswer: openAnswer }]);
 
-    autoRef.current = setTimeout(advance, 1500);
+    autoRef.current = setTimeout(advance, verdict === "partial" ? 2400 : 1500);
   }
 
   function advance() {
