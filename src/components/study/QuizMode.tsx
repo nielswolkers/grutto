@@ -150,11 +150,34 @@ export default function QuizMode({ cards, onFinish }: Props) {
               placeholder="Typ je antwoord en druk Enter..."
               className={cn(
                 "w-full px-5 py-4 rounded-xl border text-lg outline-none",
-                answered && isCorrect && "border-emerald-500 bg-emerald-50",
-                answered && !isCorrect && "border-destructive bg-destructive/5"
+                answered && openVerdict === "correct" && "border-emerald-500 bg-emerald-50",
+                answered && openVerdict === "partial" && "border-orange-400 bg-orange-50",
+                answered && openVerdict === "wrong" && "border-destructive bg-destructive/5"
               )}
             />
-            {answered && !isCorrect && (
+            {answered && openVerdict === "partial" && (
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-base font-medium text-orange-600">
+                  <AlertCircle className="w-5 h-5" /> Bijna goed — let op de verschillen:
+                </div>
+                <p className="text-base">
+                  {diffSegments(openAnswer, q.card.definition).map((seg, i) => (
+                    <span
+                      key={i}
+                      className={cn(
+                        seg.type === "same" && "text-emerald-700",
+                        seg.type === "missing" && "text-orange-600 font-semibold underline decoration-orange-400",
+                        seg.type === "extra" && "text-destructive line-through"
+                      )}
+                    >
+                      {seg.text}
+                    </span>
+                  ))}
+                </p>
+                <p className="text-xs text-muted-foreground">Correct: {q.card.definition}</p>
+              </div>
+            )}
+            {answered && openVerdict === "wrong" && (
               <p className="text-base text-destructive flex items-center gap-1">
                 <XCircle className="w-5 h-5" /> {q.card.definition}
               </p>
