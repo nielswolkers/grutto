@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { Flashcard } from "@/types/study";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { checkAnswer, diffSegments, AnswerVerdict } from "@/lib/answerCheck";
 
 interface Props {
   cards: Flashcard[];
   onFinish: (score: number, total: number, wrongCards: Array<{ card: Flashcard; userAnswer: string }>) => void;
 }
+
 
 function shuffle<T>(arr: T[]): T[] {
   return [...arr].sort(() => Math.random() - 0.5);
@@ -24,6 +26,7 @@ export default function QuizMode({ cards, onFinish }: Props) {
   const [score, setScore] = useState(0);
   const [answered, setAnswered] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
+  const [openVerdict, setOpenVerdict] = useState<AnswerVerdict>("wrong");
   const [wrongCards, setWrongCards] = useState<Array<{ card: Flashcard; userAnswer: string }>>([]);
   const autoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -71,17 +74,16 @@ export default function QuizMode({ cards, onFinish }: Props) {
 
   function handleOpenSubmit() {
     if (answered) return;
-    const userTrimmed = openAnswer.trim().toLowerCase();
-    const correctTrimmed = q.card.definition.trim().toLowerCase();
-    const correct = userTrimmed === correctTrimmed || 
-      (userTrimmed.length > 3 && correctTrimmed.includes(userTrimmed));
+    const { verdict } = checkAnswer(openAnswer, q.card.definition);
+    const correct = verdict === "correct";
 
     setAnswered(true);
     setIsCorrect(correct);
+    setOpenVerdict(verdict);
     if (correct) setScore(s => s + 1);
-    else setWrongCards(prev => [...prev, { card: q.card, userAnswer: openAnswer }]);
+    if (verdict === "wrong") setWrongCards(prev => [...prev, { card: q.card, userAnswer: openAnswer }]);
 
-    autoRef.current = setTimeout(advance, 1500);
+    autoRef.current = setTimeout(advance, verdict === "partial" ? 2400 : 1500);
   }
 
   function advance() {
@@ -148,11 +150,34 @@ export default function QuizMode({ cards, onFinish }: Props) {
               placeholder="Typ je antwoord en druk Enter..."
               className={cn(
                 "w-full px-5 py-4 rounded-xl border text-lg outline-none",
-                answered && isCorrect && "border-emerald-500 bg-emerald-50",
-                answered && !isCorrect && "border-destructive bg-destructive/5"
+                answered && openVerdict === "correct" && "border-emerald-500 bg-emerald-50",
+                answered && openVerdict === "partial" && "border-orange-400 bg-orange-50",
+                answered && openVerdict === "wrong" && "border-destructive bg-destructive/5"
               )}
             />
-            {answered && !isCorrect && (
+            {answered && openVerdict === "partial" && (
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-base font-medium text-orange-600">
+                  <AlertCircle className="w-5 h-5" /> Bijna goed — let op de verschillen:
+                </div>
+                <p className="text-base">
+                  {diffSegments(openAnswer, q.card.definition).map((seg, i) => (
+                    <span
+                      key={i}
+                      className={cn(
+                        seg.type === "same" && "text-emerald-700",
+                        seg.type === "missing" && "text-orange-600 font-semibold underline decoration-orange-400",
+                        seg.type === "extra" && "text-destructive line-through"
+                      )}
+                    >
+                      {seg.text}
+                    </span>
+                  ))}
+                </p>
+                <p className="text-xs text-muted-foreground">Correct: {q.card.definition}</p>
+              </div>
+            )}
+            {answered && openVerdict === "wrong" && (
               <p className="text-base text-destructive flex items-center gap-1">
                 <XCircle className="w-5 h-5" /> {q.card.definition}
               </p>

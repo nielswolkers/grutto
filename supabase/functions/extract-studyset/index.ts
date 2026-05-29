@@ -22,7 +22,8 @@ Deno.serve(async (req) => {
 
     const prompt = `Je krijgt een document of afbeelding met studiemateriaal${fileName ? ` (bestand: ${fileName})` : ""}.
 Genereer een Nederlandse studieset (flashcards) op basis van de inhoud.
-- Maak 8 tot 20 flashcards met heldere term/definitie paren.
+- Maak een flashcard voor ELK term/definitie paar dat in het document staat. Sla niets over. Er is GEEN maximum aantal kaarten — als het document 200 hoofdsteden bevat, maak dan 200 kaarten.
+- Eén kaart per uniek paar. Geen samenvattingen of groeperingen.
 - Kies één passende emoji.
 - Geef een korte titel (max 60 tekens) en een 1-zins beschrijving.
 Antwoord UITSLUITEND met JSON in dit formaat:

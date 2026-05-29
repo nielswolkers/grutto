@@ -220,27 +220,31 @@ export default function StudySetDetail({ setId, onBack, subjects = [] }: Props) 
         <Button variant="ghost" size="sm" onClick={() => setViewMode("detail")} className="rounded-full gap-2">
           <ArrowLeft className="w-4 h-4" /> Annuleren
         </Button>
-        <h2 className="text-xl font-bold">{set ? "Set Bewerken" : "Nieuwe Set"}</h2>
+
+        <div className="flex items-start justify-between gap-4">
+          <h2 className="text-xl font-bold">{set ? "Set Bewerken" : "Nieuwe Set"}</h2>
+          <Button onClick={handleSaveEdit} size="sm" className="rounded-full gap-2 shrink-0">
+            <Save className="w-4 h-4" /> Opslaan
+          </Button>
+        </div>
 
         <div className="space-y-4">
-          <div className="flex gap-3">
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Emoji</label>
-              <div className="flex flex-wrap gap-1">
-                {EMOJIS.map(e => (
-                  <button key={e} onClick={() => setEditEmoji(e)} className={cn("w-8 h-8 rounded-lg flex items-center justify-center text-lg", editEmoji === e ? "bg-primary/20 ring-2 ring-primary" : "hover:bg-muted")}>
-                    {e}
-                  </button>
-                ))}
-              </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Emoji</label>
+            <div className="flex flex-wrap gap-1">
+              {EMOJIS.map(e => (
+                <button key={e} onClick={() => setEditEmoji(e)} className={cn("w-8 h-8 rounded-lg flex items-center justify-center text-lg", editEmoji === e ? "bg-primary/20 ring-2 ring-primary" : "hover:bg-muted")}>
+                  {e}
+                </button>
+              ))}
             </div>
           </div>
           <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="Titel van je set" className="text-lg font-semibold" />
-          <Input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="Beschrijving" />
 
-          {subjects.length > 0 && (
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Vak</label>
+          {/* Beschrijving + Vak side-by-side */}
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_240px] gap-3 items-start">
+            <Input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="Beschrijving" />
+            {subjects.length > 0 && (
               <Select value={editSubjectId} onValueChange={setEditSubjectId}>
                 <SelectTrigger className="rounded-xl">
                   <SelectValue placeholder="Kies een vak" />
@@ -253,12 +257,17 @@ export default function StudySetDetail({ setId, onBack, subjects = [] }: Props) 
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          )}
-
-
+            )}
+          </div>
 
           <div className="space-y-3">
+            <Button
+              variant="outline"
+              onClick={() => setEditCards([{ id: generateId(), term: "", definition: "" }, ...editCards])}
+              className="rounded-full gap-2"
+            >
+              <Plus className="w-4 h-4" /> Kaart toevoegen
+            </Button>
             {editCards.map((card, i) => (
               <div key={card.id} className="flex gap-2 items-start">
                 <span className="text-xs text-muted-foreground mt-3 w-5">{i + 1}</span>
@@ -277,14 +286,7 @@ export default function StudySetDetail({ setId, onBack, subjects = [] }: Props) 
                 </Button>
               </div>
             ))}
-            <Button variant="outline" onClick={() => setEditCards([...editCards, { id: generateId(), term: "", definition: "" }])} className="rounded-full gap-2">
-              <Plus className="w-4 h-4" /> Kaart toevoegen
-            </Button>
           </div>
-
-          <Button onClick={handleSaveEdit} className="rounded-full gap-2">
-            <Save className="w-4 h-4" /> Opslaan
-          </Button>
         </div>
       </div>
     );
