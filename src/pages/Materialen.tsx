@@ -536,41 +536,55 @@ const Materialen = () => {
                   ? a.title.localeCompare(b.title)
                   : (b.lastStudied || b.createdAt) - (a.lastStudied || a.createdAt)
               );
-            return filtered.length > 0 ? (
-              <div className="flex gap-6 flex-wrap mb-8">
-                {filtered.map((set) => (
-                  <Card
-                    key={set.id}
-                    className="w-[260px] cursor-pointer hover:shadow-md transition-shadow border-dashed border-2"
-                    onClick={() => setSelectedStudySetId(set.id)}
-                  >
-                    <CardContent className="p-5">
-                      <div className="h-24 flex items-center justify-center mb-3">
-                        <span className="text-5xl">{set.emoji}</span>
-                      </div>
-                      <h3 className="font-semibold text-base truncate">{set.title}</h3>
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="text-xs text-muted-foreground">{set.cards.length} kaarten</span>
-                        {set.lastStudied && (
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {getTimeAgo(new Date(set.lastStudied).toISOString())}
-                          </span>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : selectedSubjectId ? (
-              <div className="text-center py-8 text-muted-foreground mb-8">
-                <p className="text-lg font-medium">Nog geen studiesets</p>
-                <p className="text-sm">Maak een studieset aan voor dit vak.</p>
-              </div>
-            ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                <p className="text-lg font-medium">Maak eerst een vak aan</p>
-                <p className="text-sm">Klik op 'Voeg toe' → 'Voeg vak toe' om te beginnen.</p>
+            return (
+              <div className="min-h-[360px]">
+                {filtered.length > 0 ? (
+                  <motion.div layout className="flex gap-6 flex-wrap mb-8">
+                    <AnimatePresence mode="popLayout">
+                      {filtered.map((set) => (
+                        <motion.div
+                          key={set.id}
+                          layout
+                          initial={{ opacity: 0, scale: 0.85 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.85 }}
+                          transition={{ type: "spring", stiffness: 380, damping: 28 }}
+                        >
+                          <Card
+                            className="w-[260px] cursor-pointer hover:shadow-md transition-shadow border-dashed border-2"
+                            onClick={() => setSelectedStudySetId(set.id)}
+                          >
+                            <CardContent className="p-5">
+                              <div className="h-24 flex items-center justify-center mb-3">
+                                <span className="text-5xl">{set.emoji}</span>
+                              </div>
+                              <h3 className="font-semibold text-base truncate">{set.title}</h3>
+                              <div className="flex items-center justify-between mt-1">
+                                <span className="text-xs text-muted-foreground">{set.cards.length} kaarten</span>
+                                {set.lastStudied && (
+                                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    {getTimeAgo(new Date(set.lastStudied).toISOString())}
+                                  </span>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </motion.div>
+                ) : selectedSubjectId ? (
+                  <div className="text-center py-8 text-muted-foreground mb-8">
+                    <p className="text-lg font-medium">Nog geen studiesets</p>
+                    <p className="text-sm">Maak een studieset aan voor dit vak.</p>
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <p className="text-lg font-medium">Maak eerst een vak aan</p>
+                    <p className="text-sm">Klik op 'Voeg toe' → 'Voeg vak toe' om te beginnen.</p>
+                  </div>
+                )}
               </div>
             );
           })()}
