@@ -442,27 +442,37 @@ const Materialen = () => {
         <div>
           {/* Vakken selector bar + Voeg toe button */}
           <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-1 overflow-x-auto flex-1 pb-1 pr-4">
-              {subjects.map((subject) => (
-                <button
-                  key={subject.id}
-                  onClick={() =>
-                    setSelectedSubjectId((prev) => (prev === subject.id ? null : subject.id))
-                  }
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
-                    selectedSubjectId === subject.id
-                      ? "bg-muted border border-border text-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                  }`}
-                >
-                  <span>{subject.emoji}</span>
-                  {subject.name}
-                </button>
-              ))}
-              {subjects.length === 0 && (
-                <p className="text-sm text-muted-foreground">Nog geen vakken. Maak er een aan!</p>
-              )}
-            </div>
+            <LayoutGroup id="vakken-toggle">
+              <div className="flex items-center gap-1 overflow-x-auto flex-1 pb-1 pr-4 relative">
+                {subjects.map((subject) => {
+                  const active = selectedSubjectId === subject.id;
+                  return (
+                    <button
+                      key={subject.id}
+                      onClick={() =>
+                        setSelectedSubjectId((prev) => (prev === subject.id ? null : subject.id))
+                      }
+                      className={`relative flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
+                        active ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {active && (
+                        <motion.span
+                          layoutId="vak-active-pill"
+                          className="absolute inset-0 rounded-full bg-muted border border-border"
+                          transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                        />
+                      )}
+                      <span className="relative">{subject.emoji}</span>
+                      <span className="relative">{subject.name}</span>
+                    </button>
+                  );
+                })}
+                {subjects.length === 0 && (
+                  <p className="text-sm text-muted-foreground">Nog geen vakken. Maak er een aan!</p>
+                )}
+              </div>
+            </LayoutGroup>
 
             <div className="flex items-center gap-2 flex-shrink-0">
               <DropdownMenu>
