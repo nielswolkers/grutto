@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { Flashcard } from "@/types/study";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { checkAnswer, diffSegments, AnswerVerdict } from "@/lib/answerCheck";
 
 interface Props {
   cards: Flashcard[];
   onFinish: (score: number, total: number, wrongCards: Array<{ card: Flashcard; userAnswer: string }>) => void;
 }
+
 
 function shuffle<T>(arr: T[]): T[] {
   return [...arr].sort(() => Math.random() - 0.5);
