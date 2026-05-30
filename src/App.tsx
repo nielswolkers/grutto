@@ -10,6 +10,9 @@ import DashboardLayout from "./pages/DashboardLayout";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
 import Materialen from "./pages/Materialen";
+import Apps from "./pages/Apps";
+import Scholar from "./pages/Scholar";
+import StudySetView from "./pages/StudySetView";
 import FolderView from "./pages/FolderView";
 import FilePreview from "./pages/FilePreview";
 import Meldingen from "./pages/Meldingen";
@@ -83,6 +86,9 @@ function AppRoutes() {
         <Route path="/groep/:groupId" element={<GroupProfile />} />
         <Route path="/community/:communityId" element={<CommunityPage />} />
         <Route path="/instellingen" element={<Settings />} />
+        <Route path="/apps" element={<Apps />} />
+        <Route path="/apps/scholar" element={<Scholar />} />
+        <Route path="/studieset/:setId" element={<StudySetView />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
