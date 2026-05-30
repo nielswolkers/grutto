@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.add_owner_to_library() FROM PUBLIC, anon, authenticated;

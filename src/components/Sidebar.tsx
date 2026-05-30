@@ -1,4 +1,4 @@
-import { Home, Calendar, Clock, BarChart3, CheckSquare, FileText, Bell, User, BookOpen, Compass } from 'lucide-react';
+import { Home, Calendar, Clock, BarChart3, CheckSquare, FileText, Bell, User, BookOpen, Compass, LayoutGrid } from 'lucide-react';
 import { NavLink } from './NavLink';
 import gruttoLogo from '@/assets/grutto-logo.png';
 import gruttoIcon from '@/assets/grutto-icon.png';
@@ -246,11 +246,20 @@ export function Sidebar() {
             <Compass className="w-5 h-5 flex-shrink-0" />
             <span 
               className="whitespace-nowrap overflow-hidden"
-              style={{ 
-                opacity: textOpacity,
-                transition: isDragging ? 'none' : 'opacity 0.3s ease-out'
-              }}
+              style={{ opacity: textOpacity, transition: isDragging ? 'none' : 'opacity 0.3s ease-out' }}
             >Communities</span>
+          </NavLink>
+
+          <NavLink 
+            to="/apps" 
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+            activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+          >
+            <LayoutGrid className="w-5 h-5 flex-shrink-0" />
+            <span 
+              className="whitespace-nowrap overflow-hidden"
+              style={{ opacity: textOpacity, transition: isDragging ? 'none' : 'opacity 0.3s ease-out' }}
+            >Apps</span>
           </NavLink>
         </div>
       </nav>

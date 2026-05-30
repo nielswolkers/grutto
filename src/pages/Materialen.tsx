@@ -5,9 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, ChevronDown, Plus, Clock, Users, BookOpen, Pencil, Sparkles } from "lucide-react";
-import { getStudySets } from "@/lib/studyData";
+import { getLibrarySets } from "@/lib/studySets";
 import { StudySet } from "@/types/study";
-import StudySetCard from "@/components/study/StudySetCard";
 import StudySetDetail from "@/components/study/StudySetDetail";
 import CreateStudySet from "@/components/study/CreateStudySet";
 import SubjectEditDialog from "@/components/study/SubjectEditDialog";
@@ -106,9 +105,13 @@ const Materialen = () => {
   const [showEditSubjects, setShowEditSubjects] = useState(false);
   const [showImportStudySet, setShowImportStudySet] = useState(false);
 
-  useEffect(() => {
-    setStudySets(getStudySets());
-  }, []);
+  const reloadStudySets = async () => {
+    if (!user) return;
+    try { setStudySets(await getLibrarySets(user.id)); }
+    catch (e) { console.error(e); }
+  };
+
+  useEffect(() => { if (user) reloadStudySets(); /* eslint-disable-next-line */ }, [user]);
 
   // Bestanden tab state
   const [fileActiveView, setFileActiveView] = useState<"recent" | "shared" | "favorites">("recent");
@@ -418,10 +421,7 @@ const Materialen = () => {
         <StudySetDetail
           setId={selectedStudySetId}
           subjects={subjects}
-          onBack={() => {
-            setSelectedStudySetId(null);
-            setStudySets(getStudySets());
-          }}
+          onBack={() => { setSelectedStudySetId(null); reloadStudySets(); }}
         />
       )}
 
@@ -430,11 +430,7 @@ const Materialen = () => {
           subjects={subjects}
           defaultSubjectId={selectedSubjectId}
           onBack={() => setShowCreateStudySet(false)}
-          onCreated={(id) => {
-            setShowCreateStudySet(false);
-            setStudySets(getStudySets());
-            setSelectedStudySetId(id);
-          }}
+          onCreated={(id) => { setShowCreateStudySet(false); reloadStudySets(); setSelectedStudySetId(id); }}
         />
       )}
 
@@ -512,7 +508,9 @@ const Materialen = () => {
 
           {/* Sorting + label */}
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[0.8rem] font-semibold text-muted-foreground">Studiesets</h2>
+            <h2 className="text-[0.8rem] font-semibold text-muted-foreground">
+              {selectedSubjectId ? "Studiesets" : "Alle Studiesets"}
+            </h2>
             <div className="flex items-center gap-2 text-sm">
               <span className="text-muted-foreground">Sorteren:</span>
               <select
@@ -809,10 +807,7 @@ const Materialen = () => {
         onClose={() => setShowImportStudySet(false)}
         subjects={subjects}
         defaultSubjectId={selectedSubjectId}
-        onImported={(id) => {
-          setStudySets(getStudySets());
-          setSelectedStudySetId(id);
-        }}
+        onImported={(id) => { reloadStudySets(); setSelectedStudySetId(id); }}
       />
 
     </div>

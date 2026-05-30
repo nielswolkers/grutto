@@ -1045,6 +1045,62 @@ export type Database = {
         }
         Relationships: []
       }
+      scholar_messages: {
+        Row: {
+          created_at: string
+          id: string
+          parts: Json
+          role: string
+          thread_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          parts: Json
+          role: string
+          thread_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          parts?: Json
+          role?: string
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scholar_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "scholar_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scholar_threads: {
+        Row: {
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       spotify_connections: {
         Row: {
           connected_at: string | null
@@ -1106,6 +1162,41 @@ export type Database = {
             columns: ["story_id"]
             isOneToOne: false
             referencedRelation: "group_stories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      study_cards: {
+        Row: {
+          created_at: string
+          definition: string
+          id: string
+          position: number
+          set_id: string
+          term: string
+        }
+        Insert: {
+          created_at?: string
+          definition: string
+          id?: string
+          position?: number
+          set_id: string
+          term: string
+        }
+        Update: {
+          created_at?: string
+          definition?: string
+          id?: string
+          position?: number
+          set_id?: string
+          term?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_cards_set_id_fkey"
+            columns: ["set_id"]
+            isOneToOne: false
+            referencedRelation: "study_sets"
             referencedColumns: ["id"]
           },
         ]
@@ -1173,6 +1264,77 @@ export type Database = {
           is_active?: boolean
           started_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      study_set_library: {
+        Row: {
+          added_at: string
+          id: string
+          last_studied: string | null
+          set_id: string
+          subject_id: string | null
+          user_id: string
+        }
+        Insert: {
+          added_at?: string
+          id?: string
+          last_studied?: string | null
+          set_id: string
+          subject_id?: string | null
+          user_id: string
+        }
+        Update: {
+          added_at?: string
+          id?: string
+          last_studied?: string | null
+          set_id?: string
+          subject_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_set_library_set_id_fkey"
+            columns: ["set_id"]
+            isOneToOne: false
+            referencedRelation: "study_sets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      study_sets: {
+        Row: {
+          color: string | null
+          created_at: string
+          description: string | null
+          emoji: string | null
+          id: string
+          owner_id: string
+          subject_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          emoji?: string | null
+          id?: string
+          owner_id: string
+          subject_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          emoji?: string | null
+          id?: string
+          owner_id?: string
+          subject_id?: string | null
+          title?: string
+          updated_at?: string
         }
         Relationships: []
       }
