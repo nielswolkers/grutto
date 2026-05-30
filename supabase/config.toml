@@ -1,1 +1,4 @@
 project_id = "uuxsanahnootzrctnlvh"
+
+[functions.scholar-chat]
+verify_jwt = true

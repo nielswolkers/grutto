@@ -1,31 +1,17 @@
 import { useState } from "react";
-import { StudySet, Flashcard } from "@/types/study";
-import { saveStudySet } from "@/lib/studyData";
+import { Flashcard } from "@/types/study";
+import { createStudySet } from "@/lib/studySets";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2, Save, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const EMOJIS = ["📚", "🧬", "🌍", "🇪🇸", "🔢", "⚛️", "🎨", "💡", "🏛️", "🌱", "🎵", "💻"];
+const genId = () => Math.random().toString(36).slice(2, 9);
 
-function generateId() {
-  return Math.random().toString(36).slice(2, 9);
-}
-
-interface SubjectOption {
-  id: string;
-  name: string;
-  emoji: string;
-}
-
+interface SubjectOption { id: string; name: string; emoji: string; }
 interface Props {
   onBack: () => void;
   onCreated: (id: string) => void;
@@ -38,31 +24,29 @@ export default function CreateStudySet({ onBack, onCreated, subjects, defaultSub
   const [description, setDescription] = useState("");
   const [emoji, setEmoji] = useState("📚");
   const [subjectId, setSubjectId] = useState<string>(defaultSubjectId || "");
+  const [saving, setSaving] = useState(false);
   const [cards, setCards] = useState<Flashcard[]>([
-    { id: generateId(), term: "", definition: "" },
-    { id: generateId(), term: "", definition: "" },
-    { id: generateId(), term: "", definition: "" },
+    { id: genId(), term: "", definition: "" },
+    { id: genId(), term: "", definition: "" },
+    { id: genId(), term: "", definition: "" },
   ]);
 
-  function handleSave() {
+  async function handleSave() {
     if (!title.trim()) { toast.error("Voeg een titel toe"); return; }
     if (!subjectId) { toast.error("Kies een vak"); return; }
     const validCards = cards.filter(c => c.term.trim() && c.definition.trim());
     if (validCards.length < 2) { toast.error("Voeg minstens 2 kaarten toe"); return; }
-
-    const newSet: StudySet = {
-      id: generateId(),
-      title: title.trim(),
-      description: description.trim(),
-      emoji,
-      color: "indigo",
-      subjectId,
-      cards: validCards,
-      createdAt: Date.now(),
-    };
-    saveStudySet(newSet);
-    toast.success("Studieset aangemaakt!");
-    onCreated(newSet.id);
+    setSaving(true);
+    try {
+      const id = await createStudySet({
+        title: title.trim(), description: description.trim(), emoji, subjectId,
+        cards: validCards.map(({ term, definition }) => ({ term, definition })),
+      });
+      toast.success("Studieset aangemaakt!");
+      onCreated(id);
+    } catch (e: any) {
+      toast.error(e?.message || "Aanmaken mislukt");
+    } finally { setSaving(false); }
   }
 
   return (
@@ -86,37 +70,26 @@ export default function CreateStudySet({ onBack, onCreated, subjects, defaultSub
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Vak</label>
           <Select value={subjectId} onValueChange={setSubjectId}>
-            <SelectTrigger className="rounded-xl">
-              <SelectValue placeholder="Kies een vak" />
-            </SelectTrigger>
+            <SelectTrigger className="rounded-xl"><SelectValue placeholder="Kies een vak" /></SelectTrigger>
             <SelectContent>
               {subjects.length === 0 ? (
                 <SelectItem value="__none" disabled>Geen vakken — maak er eerst een aan</SelectItem>
-              ) : (
-                subjects.map(s => (
-                  <SelectItem key={s.id} value={s.id}>
-                    <span className="mr-2">{s.emoji}</span>{s.name}
-                  </SelectItem>
-                ))
-              )}
+              ) : subjects.map(s => (
+                <SelectItem key={s.id} value={s.id}><span className="mr-2">{s.emoji}</span>{s.name}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
 
         <div className="space-y-3">
+          <Button variant="outline" onClick={() => setCards([{ id: genId(), term: "", definition: "" }, ...cards])} className="rounded-full gap-2">
+            <Plus className="w-4 h-4" /> Kaart toevoegen
+          </Button>
           {cards.map((card, i) => (
             <div key={card.id} className="flex gap-2 items-start">
               <span className="text-xs text-muted-foreground mt-3 w-5">{i + 1}</span>
-              <Input value={card.term} onChange={(e) => {
-                const newCards = [...cards];
-                newCards[i] = { ...card, term: e.target.value };
-                setCards(newCards);
-              }} placeholder="Term" className="flex-1" />
-              <Input value={card.definition} onChange={(e) => {
-                const newCards = [...cards];
-                newCards[i] = { ...card, definition: e.target.value };
-                setCards(newCards);
-              }} placeholder="Definitie" className="flex-1" />
+              <Input value={card.term} onChange={(e) => { const n = [...cards]; n[i] = { ...card, term: e.target.value }; setCards(n); }} placeholder="Term" className="flex-1" />
+              <Input value={card.definition} onChange={(e) => { const n = [...cards]; n[i] = { ...card, definition: e.target.value }; setCards(n); }} placeholder="Definitie" className="flex-1" />
               {cards.length > 2 && (
                 <Button variant="ghost" size="icon" className="shrink-0" onClick={() => setCards(cards.filter((_, idx) => idx !== i))}>
                   <Trash2 className="w-4 h-4" />
@@ -124,13 +97,10 @@ export default function CreateStudySet({ onBack, onCreated, subjects, defaultSub
               )}
             </div>
           ))}
-          <Button variant="outline" onClick={() => setCards([...cards, { id: generateId(), term: "", definition: "" }])} className="rounded-full gap-2">
-            <Plus className="w-4 h-4" /> Kaart toevoegen
-          </Button>
         </div>
 
-        <Button onClick={handleSave} className="rounded-full gap-2">
-          <Save className="w-4 h-4" /> Set Aanmaken
+        <Button onClick={handleSave} disabled={saving} className="rounded-full gap-2">
+          <Save className="w-4 h-4" /> {saving ? "Aanmaken..." : "Set Aanmaken"}
         </Button>
       </div>
     </div>

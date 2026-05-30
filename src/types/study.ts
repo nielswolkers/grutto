@@ -14,6 +14,8 @@ export interface StudySet {
   lastStudied?: number;
   color: string;
   subjectId?: string;
+  ownerId?: string;
+  isOwner?: boolean;
 }
 
 export type StudyMode = "flashcards" | "quiz" | "learn" | "match";
