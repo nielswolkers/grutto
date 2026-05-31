@@ -1,32 +1,53 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, GraduationCap, Plus, Send, Trash2, Loader2 } from "lucide-react";
+import { ArrowRight, Copy, GraduationCap, Plus, Send, Trash2, Loader2, PanelLeft, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface Thread { id: string; title: string; updated_at: string; }
-interface Message { id: string; role: "user" | "assistant"; content: string; }
+interface ResultItem {
+  title: string;
+  authors: string[];
+  year: number | null;
+  venue: string | null;
+  cited_by_count: number;
+  open_access: boolean;
+  link: string;
+  reason: string;
+  citation: string;
+}
+interface AssistantPayload {
+  intro?: string;
+  results?: ResultItem[];
+  comparison?: string;
+  followUps?: string[];
+}
+interface Message {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  payload?: AssistantPayload;
+}
 
-function renderMarkdownLite(text: string) {
-  // Bold **x**, links http(s)://, line breaks.
-  const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const withBold = escaped.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-  const withLinks = withBold.replace(/(https?:\/\/[^\s<]+)/g, '<a class="underline text-primary" target="_blank" rel="noopener" href="$1">$1</a>');
-  return withLinks.replace(/\n/g, "<br/>");
+function stripStars(text: string) {
+  return text
+    .replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, "$2")
+    .replace(/\*+/g, "")
+    .replace(/`+/g, "");
 }
 
 export default function Scholar() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [threads, setThreads] = useState<Thread[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { if (user) loadThreads(); }, [user]);
@@ -47,7 +68,8 @@ export default function Scholar() {
     setMessages((data || []).map((m: any) => ({
       id: m.id,
       role: m.role,
-      content: (m.parts?.text as string) || "",
+      content: typeof m.parts?.text === "string" ? stripStars(m.parts.text) : "",
+      payload: m.parts?.payload,
     })));
   }
 
@@ -81,7 +103,6 @@ export default function Scholar() {
     setMessages((p) => [...p, userMsg]);
     await supabase.from("scholar_messages").insert({ thread_id: threadId, role: "user", parts: { text: trimmed } });
 
-    // Title from first user message
     if (messages.length === 0) {
       const title = trimmed.slice(0, 60);
       await supabase.from("scholar_threads").update({ title }).eq("id", threadId);
@@ -94,10 +115,24 @@ export default function Scholar() {
         body: { messages: history },
       });
       if (error) throw error;
-      const reply = (data?.text || "").trim() || "(geen antwoord)";
-      const assistant: Message = { id: crypto.randomUUID(), role: "assistant", content: reply };
+      const payload: AssistantPayload = {
+        intro: data?.intro,
+        results: data?.results || [],
+        comparison: data?.comparison,
+        followUps: data?.followUps || [],
+      };
+      const assistant: Message = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: stripStars(payload.intro || ""),
+        payload,
+      };
       setMessages((p) => [...p, assistant]);
-      await supabase.from("scholar_messages").insert({ thread_id: threadId, role: "assistant", parts: { text: reply, search: data?.search } });
+      await supabase.from("scholar_messages").insert({
+        thread_id: threadId,
+        role: "assistant",
+        parts: { text: payload.intro || "", payload, search: data?.search },
+      });
       await supabase.from("scholar_threads").update({ updated_at: new Date().toISOString() }).eq("id", threadId);
     } catch (e: any) {
       toast.error(e?.message || "Verzoek mislukt");
@@ -114,38 +149,64 @@ export default function Scholar() {
   ], []);
 
   return (
-    <div className="flex h-[calc(100vh-64px)]">
-      {/* Sidebar */}
-      <aside className="w-64 border-r flex flex-col">
-        <div className="p-3 border-b flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/apps")}><ArrowLeft className="w-4 h-4" /></Button>
-          <span className="font-semibold text-sm">Scholar</span>
-        </div>
-        <div className="p-3">
-          <Button onClick={newThread} className="w-full gap-2 rounded-full" size="sm">
-            <Plus className="w-4 h-4" /> Nieuw gesprek
-          </Button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-1">
-          {threads.map((t) => (
-            <div key={t.id} className={cn(
-              "group flex items-center gap-1 rounded-lg px-2 py-1.5 cursor-pointer text-sm",
-              activeId === t.id ? "bg-muted" : "hover:bg-muted/50",
-            )} onClick={() => setActiveId(t.id)}>
-              <span className="flex-1 truncate">{t.title}</span>
-              <button onClick={(e) => { e.stopPropagation(); deleteThread(t.id); }} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive">
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ))}
-          {threads.length === 0 && <p className="text-xs text-muted-foreground px-2 py-3">Nog geen gesprekken.</p>}
-        </div>
-      </aside>
+    <div className="flex h-[calc(100vh-64px)] relative">
+      {/* Floating sidebar toggle */}
+      <button
+        onClick={() => setSidebarOpen((s) => !s)}
+        className="absolute top-3 left-3 z-30 inline-flex items-center justify-center w-9 h-9 rounded-full bg-background border hover:bg-muted transition-colors"
+        aria-label="Toon gesprekken"
+      >
+        <PanelLeft className="w-4 h-4" />
+      </button>
+
+      {/* Slide-over sidebar */}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <>
+            <motion.div
+              className="absolute inset-0 bg-black/20 z-10"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setSidebarOpen(false)}
+            />
+            <motion.aside
+              className="absolute top-0 left-0 h-full w-72 bg-background border-r z-20 flex flex-col"
+              initial={{ x: -300 }} animate={{ x: 0 }} exit={{ x: -300 }}
+              transition={{ type: "spring", damping: 25, stiffness: 220 }}
+            >
+              <div className="p-3 border-b flex items-center justify-between pl-14">
+                <span className="font-semibold text-sm">Gesprekken</span>
+                <button onClick={() => setSidebarOpen(false)} className="text-muted-foreground hover:text-foreground">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-3">
+                <Button onClick={newThread} className="w-full gap-2 rounded-full" size="sm">
+                  <Plus className="w-4 h-4" /> Nieuw gesprek
+                </Button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-1">
+                {threads.map((t) => (
+                  <div key={t.id} className={cn(
+                    "group flex items-center gap-1 rounded-lg px-2 py-1.5 cursor-pointer text-sm",
+                    activeId === t.id ? "bg-muted" : "hover:bg-muted/50",
+                  )} onClick={() => { setActiveId(t.id); setSidebarOpen(false); }}>
+                    <span className="flex-1 truncate">{t.title}</span>
+                    <button onClick={(e) => { e.stopPropagation(); deleteThread(t.id); }} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+                {threads.length === 0 && <p className="text-xs text-muted-foreground px-2 py-3">Nog geen gesprekken.</p>}
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Main */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
-          <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
+          <div className="max-w-5xl mx-auto px-6 py-8 pt-16 space-y-8">
             {messages.length === 0 ? (
               <div className="text-center py-12">
                 <GraduationCap className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
@@ -160,13 +221,12 @@ export default function Scholar() {
                 </div>
               </div>
             ) : (
-              messages.map((m) => (
-                <div key={m.id} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
-                  <div className={cn(
-                    "max-w-[85%] rounded-lg px-4 py-3 text-sm",
-                    m.role === "user" ? "bg-secondary" : "bg-transparent",
-                  )} dangerouslySetInnerHTML={{ __html: renderMarkdownLite(m.content) }} />
+              messages.map((m) => m.role === "user" ? (
+                <div key={m.id} className="flex justify-end">
+                  <div className="max-w-[85%] rounded-lg px-4 py-3 text-sm bg-secondary">{m.content}</div>
                 </div>
+              ) : (
+                <AssistantMessage key={m.id} message={m} onFollowUp={send} />
               ))
             )}
             {sending && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Zoeken in OpenAlex…</div>}
@@ -174,7 +234,7 @@ export default function Scholar() {
         </div>
 
         <div className="border-t bg-background">
-          <div className="max-w-3xl mx-auto p-4">
+          <div className="max-w-5xl mx-auto p-4">
             <div className="flex items-end gap-2 rounded-2xl border bg-background p-2">
               <Textarea
                 value={input}
@@ -192,5 +252,105 @@ export default function Scholar() {
         </div>
       </div>
     </div>
+  );
+}
+
+function AssistantMessage({ message, onFollowUp }: { message: Message; onFollowUp: (s: string) => void }) {
+  const p = message.payload;
+  const results = p?.results || [];
+  return (
+    <div className="space-y-4">
+      {(p?.intro || message.content) && (
+        <p className="text-sm leading-relaxed">{stripStars(p?.intro || message.content)}</p>
+      )}
+
+      <div className="space-y-3">
+        {results.map((r, i) => (
+          <ResultCard key={i} r={r} index={i} />
+        ))}
+      </div>
+
+      {p?.comparison && (
+        <motion.p
+          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: results.length * 0.12 + 0.1 }}
+          className="text-sm text-muted-foreground leading-relaxed"
+        >
+          {stripStars(p.comparison)}
+        </motion.p>
+      )}
+
+      {p?.followUps && p.followUps.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: results.length * 0.12 + 0.2 }}
+          className="pt-2"
+        >
+          <p className="text-sm font-medium mb-2">Wil je meer details over:</p>
+          <div className="flex flex-wrap gap-2">
+            {p.followUps.map((f, i) => (
+              <button
+                key={i}
+                onClick={() => onFollowUp(f)}
+                className="rounded-full border bg-background px-3 py-1.5 text-xs hover:bg-muted hover:border-foreground/30 transition-colors text-left"
+              >
+                {stripStars(f)}
+              </button>
+            ))}
+          </div>
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+function ResultCard({ r, index }: { r: ResultItem; index: number }) {
+  const link = (r.link || "").trim();
+  const citation = r.citation || `${(r.authors || []).join(", ")} (${r.year ?? "n.d."}). ${r.title}. ${r.venue ?? ""}`.trim();
+
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(citation); toast.success("Citatie gekopieerd"); }
+    catch { toast.error("Kopiëren mislukt"); }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: index * 0.12, ease: "easeOut" }}
+      className="flex gap-3 items-stretch"
+    >
+      <div className="flex-1 rounded-2xl border bg-card p-4 shadow-sm">
+        <h3 className="font-semibold text-base leading-snug">{stripStars(r.title)}</h3>
+        <p className="text-xs text-muted-foreground mt-1">
+          {(r.authors || []).slice(0, 4).join(", ")}{r.authors && r.authors.length > 4 ? " et al." : ""}
+          {r.year ? ` · ${r.year}` : ""}
+          {r.venue ? ` · ${stripStars(r.venue)}` : ""}
+        </p>
+        <div className="flex flex-wrap gap-2 mt-2 text-xs text-muted-foreground">
+          <span>{r.cited_by_count.toLocaleString()} citaties</span>
+          {r.open_access && <span className="text-emerald-600">Open Access</span>}
+        </div>
+        {r.reason && <p className="text-sm mt-3 leading-relaxed">{stripStars(r.reason)}</p>}
+      </div>
+      <div className="flex flex-col gap-2 shrink-0">
+        <a
+          href={link}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Open link"
+          className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-foreground text-background hover:opacity-90 transition-opacity"
+        >
+          <ArrowRight className="w-4 h-4" />
+        </a>
+        <button
+          onClick={copy}
+          aria-label="Kopieer citatie"
+          className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-muted text-foreground hover:bg-muted/70 transition-colors"
+        >
+          <Copy className="w-4 h-4" />
+        </button>
+      </div>
+    </motion.div>
   );
 }
