@@ -158,18 +158,34 @@ const SYSTEM_PROMPT = `You are Scholar AI, a precise academic search assistant.
 
 Use ONLY the supplied scholarly search results. Never invent papers, authors, DOIs, links, or result counts.
 
-When a user requests papers from a specific year or newer (e.g. "since 2022", "from 2020 onwards", "after 2019"), the search has ALREADY been filtered by year on the server. Trust the filter and never include papers outside it. If the user asks for a specific year, mention it.
+When a user requests papers from a specific year or newer, the search has ALREADY been filtered on the server. Trust the filter.
 
-Default behavior:
-- Compare the entire supplied candidate set.
-- Pick the top 5 papers most specifically suited to the user's prompt unless another number is requested.
-- If no candidates are supplied, answer from the user's query only and say no indexed matches were returned.
+You MUST reply with STRICT JSON ONLY (no prose outside JSON, no markdown, no code fences) matching:
+{
+  "intro": string,
+  "results": [
+    {
+      "title": string,
+      "authors": string[],
+      "year": number | null,
+      "venue": string | null,
+      "cited_by_count": number,
+      "open_access": boolean,
+      "link": string,
+      "reason": string,
+      "citation": string
+    }
+  ],
+  "comparison": string,
+  "followUps": [string, string, string]
+}
 
-Answer format:
-1. Start with one sentence explaining what was searched (mention any year filter) and how many candidate matches were found.
-2. Give a numbered list of the selected papers: **Title** — authors (year), venue. Include why it suits the prompt, citations, OA status, and the link.
-3. Include a short comparison paragraph explaining why these were selected over the other matches.
-4. End with exactly one line: "Would you like more details on: [option 1] | [option 2] | [option 3]".`;
+RULES:
+- NEVER use markdown characters like *, **, _, or backticks in any string.
+- NEVER wrap URLs in markdown like [url](url). Output the raw URL string.
+- Plain prose in intro/reason/comparison. No bullets or headings.
+- Default 5 results unless requestedAnswerCount differs. Pick from selectedResults.
+- If no candidates, empty results array.`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
@@ -217,6 +233,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [{ role: "system", content: SYSTEM_PROMPT }, ...aiHistory],
+        response_format: { type: "json_object" },
         stream: false,
       }),
     });
@@ -226,10 +243,26 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: `AI gateway ${aiRes.status}: ${txt.slice(0, 400)}` }), { status: 500, headers: { ...CORS, "Content-Type": "application/json" } });
     }
     const aiJson = await aiRes.json();
-    const text = aiJson.choices?.[0]?.message?.content ?? "";
+    const raw = aiJson.choices?.[0]?.message?.content ?? "{}";
+    let payload: any = {};
+    try { payload = JSON.parse(raw); } catch { payload = { intro: raw, results: [], comparison: "", followUps: [] }; }
+
+    const clean = (s: any) => typeof s === "string"
+      ? s.replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, "$2").replace(/\*+/g, "").replace(/`+/g, "")
+      : s;
+    payload.intro = clean(payload.intro) || "";
+    payload.comparison = clean(payload.comparison) || "";
+    payload.followUps = Array.isArray(payload.followUps) ? payload.followUps.map(clean).filter(Boolean).slice(0, 3) : [];
+    payload.results = Array.isArray(payload.results) ? payload.results.map((r: any) => ({
+      ...r,
+      title: clean(r.title),
+      reason: clean(r.reason),
+      citation: clean(r.citation),
+      venue: clean(r.venue),
+    })) : [];
 
     return new Response(JSON.stringify({
-      text,
+      ...payload,
       search: { query: search.query, yearFilter: search.year_filter, total: search.total, returned: selected.length },
     }), { headers: { ...CORS, "Content-Type": "application/json" } });
   } catch (e) {
