@@ -149,17 +149,17 @@ export default function Scholar() {
   ], []);
 
   return (
-    <div className="flex h-[calc(100vh-64px)] relative">
+    <div className="flex h-[calc(100vh-64px)] relative overflow-hidden">
       {/* Floating sidebar toggle */}
       <button
         onClick={() => setSidebarOpen((s) => !s)}
-        className="absolute top-3 left-3 z-30 inline-flex items-center justify-center w-9 h-9 rounded-full bg-background border hover:bg-muted transition-colors"
-        aria-label="Toon gesprekken"
+        className="absolute top-3 left-3 z-30 inline-flex items-center justify-center w-10 h-10 rounded-full bg-background border hover:bg-muted transition-colors"
+        aria-label="Toon geschiedenis"
       >
-        <PanelLeft className="w-4 h-4" />
+        <PanelLeft className="w-5 h-5" />
       </button>
 
-      {/* Slide-over sidebar */}
+      {/* Slide-over history sidebar — sits below main menu (z-10), not over it */}
       <AnimatePresence>
         {sidebarOpen && (
           <>
@@ -169,14 +169,14 @@ export default function Scholar() {
               onClick={() => setSidebarOpen(false)}
             />
             <motion.aside
-              className="absolute top-0 left-0 h-full w-72 bg-background border-r z-20 flex flex-col"
-              initial={{ x: -300 }} animate={{ x: 0 }} exit={{ x: -300 }}
+              className="absolute top-0 left-0 h-full w-80 bg-background border-r z-10 flex flex-col"
+              initial={{ x: -320 }} animate={{ x: 0 }} exit={{ x: -320 }}
               transition={{ type: "spring", damping: 25, stiffness: 220 }}
             >
-              <div className="p-3 border-b flex items-center justify-between pl-14">
-                <span className="font-semibold text-sm">Gesprekken</span>
+              <div className="p-4 border-b flex items-center justify-between pl-16">
+                <span className="font-bold text-xl">Geschiedenis</span>
                 <button onClick={() => setSidebarOpen(false)} className="text-muted-foreground hover:text-foreground">
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
               <div className="p-3">
@@ -187,16 +187,16 @@ export default function Scholar() {
               <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-1">
                 {threads.map((t) => (
                   <div key={t.id} className={cn(
-                    "group flex items-center gap-1 rounded-lg px-2 py-1.5 cursor-pointer text-sm",
+                    "group flex items-center gap-1 rounded-lg px-3 py-2 cursor-pointer text-base",
                     activeId === t.id ? "bg-muted" : "hover:bg-muted/50",
                   )} onClick={() => { setActiveId(t.id); setSidebarOpen(false); }}>
                     <span className="flex-1 truncate">{t.title}</span>
                     <button onClick={(e) => { e.stopPropagation(); deleteThread(t.id); }} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive">
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 ))}
-                {threads.length === 0 && <p className="text-xs text-muted-foreground px-2 py-3">Nog geen gesprekken.</p>}
+                {threads.length === 0 && <p className="text-sm text-muted-foreground px-2 py-3">Nog geen gesprekken.</p>}
               </div>
             </motion.aside>
           </>
@@ -204,17 +204,17 @@ export default function Scholar() {
       </AnimatePresence>
 
       {/* Main */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 relative">
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
-          <div className="max-w-5xl mx-auto px-6 py-8 pt-16 space-y-8">
+          <div className="max-w-5xl mx-auto px-6 py-8 pt-16 pb-40 space-y-8">
             {messages.length === 0 ? (
               <div className="text-center py-12">
-                <GraduationCap className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <h2 className="font-semibold text-lg">Wat onderzoek je?</h2>
-                <p className="text-sm text-muted-foreground mb-6">Vraag in gewone taal. Ik zoek in OpenAlex met precieze filters — jaar, auteur, venue, open access.</p>
-                <div className="flex flex-col gap-2 max-w-md mx-auto">
+                <GraduationCap className="w-14 h-14 mx-auto text-muted-foreground mb-4" />
+                <h2 className="font-semibold text-2xl">Wat onderzoek je?</h2>
+                <p className="text-base text-muted-foreground mb-6 mt-2">Vraag in gewone taal. Ik zoek in OpenAlex met precieze filters — jaar, auteur, venue, open access.</p>
+                <div className="flex flex-col gap-2 max-w-lg mx-auto">
                   {suggestions.map((s) => (
-                    <button key={s} onClick={() => send(s)} className="rounded-md border px-3 py-2 text-left text-sm text-muted-foreground hover:text-foreground hover:border-foreground/20">
+                    <button key={s} onClick={() => send(s)} className="rounded-lg border px-4 py-3 text-left text-base text-muted-foreground hover:text-foreground hover:border-foreground/20">
                       {s}
                     </button>
                   ))}
@@ -223,31 +223,35 @@ export default function Scholar() {
             ) : (
               messages.map((m) => m.role === "user" ? (
                 <div key={m.id} className="flex justify-end">
-                  <div className="max-w-[85%] rounded-lg px-4 py-3 text-sm bg-secondary">{m.content}</div>
+                  <div className="max-w-[85%] rounded-lg px-4 py-3 text-base bg-secondary">{m.content}</div>
                 </div>
               ) : (
                 <AssistantMessage key={m.id} message={m} onFollowUp={send} />
               ))
             )}
-            {sending && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Zoeken in OpenAlex…</div>}
+            {sending && <div className="flex items-center gap-2 text-base text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Zoeken in OpenAlex…</div>}
           </div>
         </div>
 
-        <div className="border-t bg-background">
-          <div className="max-w-5xl mx-auto p-4">
-            <div className="flex items-end gap-2 rounded-2xl border bg-background p-2">
-              <Textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
-                placeholder="Vraag Scholar AI naar papers, auteurs, onderwerpen…"
-                className="resize-none border-0 focus-visible:ring-0 min-h-[44px] max-h-40"
-              />
-              <Button onClick={() => send(input)} disabled={!input.trim() || sending} size="icon" className="rounded-full shrink-0">
-                <Send className="w-4 h-4" />
-              </Button>
+        {/* Floating composer with blurred backdrop */}
+        <div className="absolute bottom-0 left-0 right-0 pointer-events-none">
+          <div className="h-32 bg-gradient-to-t from-background/90 via-background/60 to-transparent backdrop-blur-md" />
+          <div className="absolute bottom-4 left-0 right-0 px-4 pointer-events-none">
+            <div className="max-w-2xl mx-auto pointer-events-auto">
+              <div className="flex items-end gap-2 rounded-2xl border bg-background/95 backdrop-blur p-2 shadow-lg">
+                <Textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
+                  placeholder="Vraag Scholar AI naar papers, auteurs, onderwerpen…"
+                  className="resize-none border-0 focus-visible:ring-0 min-h-[44px] max-h-40 text-base bg-transparent"
+                />
+                <Button onClick={() => send(input)} disabled={!input.trim() || sending} size="icon" className="rounded-full shrink-0">
+                  <Send className="w-4 h-4" />
+                </Button>
+              </div>
+              <p className="text-center text-xs text-muted-foreground mt-2">Resultaten van OpenAlex. Verifieer altijd citaties.</p>
             </div>
-            <p className="text-center text-xs text-muted-foreground mt-2">Resultaten van OpenAlex. Verifieer altijd citaties.</p>
           </div>
         </div>
       </div>
@@ -261,7 +265,7 @@ function AssistantMessage({ message, onFollowUp }: { message: Message; onFollowU
   return (
     <div className="space-y-4">
       {(p?.intro || message.content) && (
-        <p className="text-sm leading-relaxed">{stripStars(p?.intro || message.content)}</p>
+        <p className="text-base leading-relaxed">{stripStars(p?.intro || message.content)}</p>
       )}
 
       <div className="space-y-3">
@@ -274,7 +278,7 @@ function AssistantMessage({ message, onFollowUp }: { message: Message; onFollowU
         <motion.p
           initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
           transition={{ delay: results.length * 0.12 + 0.1 }}
-          className="text-sm text-muted-foreground leading-relaxed"
+          className="text-base text-muted-foreground leading-relaxed"
         >
           {stripStars(p.comparison)}
         </motion.p>
@@ -286,13 +290,13 @@ function AssistantMessage({ message, onFollowUp }: { message: Message; onFollowU
           transition={{ delay: results.length * 0.12 + 0.2 }}
           className="pt-2"
         >
-          <p className="text-sm font-medium mb-2">Wil je meer details over:</p>
+          <p className="text-base font-medium mb-2">Wil je meer details over:</p>
           <div className="flex flex-wrap gap-2">
             {p.followUps.map((f, i) => (
               <button
                 key={i}
                 onClick={() => onFollowUp(f)}
-                className="rounded-full border bg-background px-3 py-1.5 text-xs hover:bg-muted hover:border-foreground/30 transition-colors text-left"
+                className="rounded-full border bg-background px-4 py-2 text-sm hover:bg-muted hover:border-foreground/30 transition-colors text-left"
               >
                 {stripStars(f)}
               </button>
@@ -320,18 +324,18 @@ function ResultCard({ r, index }: { r: ResultItem; index: number }) {
       transition={{ duration: 0.35, delay: index * 0.12, ease: "easeOut" }}
       className="flex gap-3 items-stretch"
     >
-      <div className="flex-1 rounded-2xl border bg-card p-4 shadow-sm">
-        <h3 className="font-semibold text-base leading-snug">{stripStars(r.title)}</h3>
-        <p className="text-xs text-muted-foreground mt-1">
-          {(r.authors || []).slice(0, 4).join(", ")}{r.authors && r.authors.length > 4 ? " et al." : ""}
+      <div className="flex-1 rounded-2xl border bg-card p-5 shadow-sm">
+        <h3 className="font-semibold text-lg leading-snug">{stripStars(r.title)}</h3>
+        <p className="text-sm text-muted-foreground mt-1">
+          {(r.authors || []).slice(0, 4).join(", ")}{r.authors && r.authors.length > 4 ? " e.a." : ""}
           {r.year ? ` · ${r.year}` : ""}
           {r.venue ? ` · ${stripStars(r.venue)}` : ""}
         </p>
-        <div className="flex flex-wrap gap-2 mt-2 text-xs text-muted-foreground">
+        <div className="flex flex-wrap gap-2 mt-2 text-sm text-muted-foreground">
           <span>{r.cited_by_count.toLocaleString()} citaties</span>
           {r.open_access && <span className="text-emerald-600">Open Access</span>}
         </div>
-        {r.reason && <p className="text-sm mt-3 leading-relaxed">{stripStars(r.reason)}</p>}
+        {r.reason && <p className="text-base mt-3 leading-relaxed">{stripStars(r.reason)}</p>}
       </div>
       <div className="flex flex-col gap-2 shrink-0">
         <a
@@ -339,7 +343,7 @@ function ResultCard({ r, index }: { r: ResultItem; index: number }) {
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Open link"
-          className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-foreground text-background hover:opacity-90 transition-opacity"
+          className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-muted text-foreground hover:bg-muted/70 transition-colors"
         >
           <ArrowRight className="w-4 h-4" />
         </a>
