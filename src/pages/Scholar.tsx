@@ -131,7 +131,7 @@ export default function Scholar() {
       await supabase.from("scholar_messages").insert({
         thread_id: threadId,
         role: "assistant",
-        parts: { text: payload.intro || "", payload, search: data?.search },
+        parts: { text: payload.intro || "", payload, search: data?.search } as any,
       });
       await supabase.from("scholar_threads").update({ updated_at: new Date().toISOString() }).eq("id", threadId);
     } catch (e: any) {
