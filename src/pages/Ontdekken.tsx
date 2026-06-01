@@ -110,13 +110,14 @@ export default function Ontdekken() {
   const location = useLocation();
   const { verifiedUserIds } = useVerifiedUsers();
   const { verifiedGroupIds } = useVerifiedGroups();
-  const [activeView, setActiveView] = useState<"mijn" | "ontdekken">("mijn");
+  const [activeView, setActiveView] = useState<"mijn" | "ontdekken">("ontdekken");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchExpanded, setSearchExpanded] = useState(false);
   const searchExpandedRef = useRef<HTMLInputElement>(null);
   const [searchResults, setSearchResults] = useState<SearchResultType[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [publications, setPublications] = useState<Publication[]>([]);
+  const [publicGroups, setPublicGroups] = useState<StudyGroup[]>([]);
   const [loading, setLoading] = useState(true);
 
   // New publication state
@@ -147,8 +148,9 @@ export default function Ontdekken() {
   const [myGroupIds, setMyGroupIds] = useState<Set<string>>(new Set());
   const [myGroups, setMyGroups] = useState<StudyGroup[]>([]);
   const [adminGroupIds, setAdminGroupIds] = useState<Set<string>>(new Set());
+  const locationState = location.state as { openCommunityId?: string } | null;
   const [pendingOpenCommunityId, setPendingOpenCommunityId] = useState<string | null>(
-    (location.state as any)?.openCommunityId || null
+    locationState?.openCommunityId || null
   );
 
   const isUserVerified = (userId: string) => verifiedUserIds.includes(userId);
@@ -161,6 +163,7 @@ export default function Ontdekken() {
   }, [searchExpanded]);
 
   useEffect(() => {
+    loadPublicGroups();
     if (activeView === "ontdekken") {
       loadPublications();
     }
@@ -262,6 +265,32 @@ export default function Ontdekken() {
     } else {
       setMyGroups([]);
     }
+  };
+
+  const loadPublicGroups = async () => {
+    const { data: groups } = await supabase
+      .from("study_groups")
+      .select("id, name, avatar_url, banner_url, bio, owner_id, is_public")
+      .eq("is_public", true)
+      .order("created_at", { ascending: false });
+
+    const enrichedGroups: StudyGroup[] = [];
+    for (const group of groups || []) {
+      const { count } = await supabase
+        .from("group_members")
+        .select("*", { count: "exact", head: true })
+        .eq("group_id", group.id)
+        .eq("status", "accepted");
+
+      enrichedGroups.push({
+        ...group,
+        banner_url: group.banner_url || null,
+        bio: group.bio || null,
+        member_count: (count || 0) + 1,
+      });
+    }
+
+    setPublicGroups(enrichedGroups);
   };
 
   const loadMyProfile = async () => {
@@ -795,7 +824,7 @@ export default function Ontdekken() {
           )}
         </div>
       ) : (
-        // Ontdekken View - Search + Publications Feed only
+        // Ontdekken View - Public communities + Publications Feed
         <div className="space-y-6">
           {/* Search Bar */}
           <div className="sticky top-0 z-10 bg-background pb-4">
@@ -887,6 +916,39 @@ export default function Ontdekken() {
                   )}
                 </CardContent>
               </Card>
+            )}
+          </div>
+
+          {/* Public Communities */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h1 className="text-4xl font-bold text-foreground">Communities</h1>
+              <Badge variant="secondary" className="rounded-full">
+                {publicGroups.length} groepen
+              </Badge>
+            </div>
+
+            {publicGroups.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p className="text-lg font-medium">Geen communities gevonden</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {publicGroups.map((group) => (
+                  <CommunityCard
+                    key={group.id}
+                    id={group.id}
+                    name={group.name}
+                    avatar_url={group.avatar_url}
+                    banner_url={group.banner_url}
+                    bio={group.bio}
+                    member_count={group.member_count || 1}
+                    isVerified={isGroupVerified(group.id)}
+                    isAdmin={adminGroupIds.has(group.id)}
+                  />
+                ))}
+              </div>
             )}
           </div>
 
