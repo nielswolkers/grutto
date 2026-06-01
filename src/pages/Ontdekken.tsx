@@ -148,8 +148,9 @@ export default function Ontdekken() {
   const [myGroupIds, setMyGroupIds] = useState<Set<string>>(new Set());
   const [myGroups, setMyGroups] = useState<StudyGroup[]>([]);
   const [adminGroupIds, setAdminGroupIds] = useState<Set<string>>(new Set());
+  const locationState = location.state as { openCommunityId?: string } | null;
   const [pendingOpenCommunityId, setPendingOpenCommunityId] = useState<string | null>(
-    (location.state as any)?.openCommunityId || null
+    locationState?.openCommunityId || null
   );
 
   const isUserVerified = (userId: string) => verifiedUserIds.includes(userId);
