@@ -823,7 +823,7 @@ export default function Ontdekken() {
           )}
         </div>
       ) : (
-        // Ontdekken View - Search + Publications Feed only
+        // Ontdekken View - Public communities + Publications Feed
         <div className="space-y-6">
           {/* Search Bar */}
           <div className="sticky top-0 z-10 bg-background pb-4">
@@ -915,6 +915,39 @@ export default function Ontdekken() {
                   )}
                 </CardContent>
               </Card>
+            )}
+          </div>
+
+          {/* Public Communities */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h1 className="text-4xl font-bold text-foreground">Communities</h1>
+              <Badge variant="secondary" className="rounded-full">
+                {publicGroups.length} groepen
+              </Badge>
+            </div>
+
+            {publicGroups.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p className="text-lg font-medium">Geen communities gevonden</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {publicGroups.map((group) => (
+                  <CommunityCard
+                    key={group.id}
+                    id={group.id}
+                    name={group.name}
+                    avatar_url={group.avatar_url}
+                    banner_url={group.banner_url}
+                    bio={group.bio}
+                    member_count={group.member_count || 1}
+                    isVerified={isGroupVerified(group.id)}
+                    isAdmin={adminGroupIds.has(group.id)}
+                  />
+                ))}
+              </div>
             )}
           </div>
 
