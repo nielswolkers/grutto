@@ -110,7 +110,7 @@ export default function Ontdekken() {
   const location = useLocation();
   const { verifiedUserIds } = useVerifiedUsers();
   const { verifiedGroupIds } = useVerifiedGroups();
-  const [activeView, setActiveView] = useState<"mijn" | "ontdekken">("mijn");
+  const [activeView, setActiveView] = useState<"mijn" | "ontdekken">("ontdekken");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchExpanded, setSearchExpanded] = useState(false);
   const searchExpandedRef = useRef<HTMLInputElement>(null);
