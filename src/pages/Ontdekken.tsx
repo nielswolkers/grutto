@@ -117,6 +117,7 @@ export default function Ontdekken() {
   const [searchResults, setSearchResults] = useState<SearchResultType[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [publications, setPublications] = useState<Publication[]>([]);
+  const [publicGroups, setPublicGroups] = useState<StudyGroup[]>([]);
   const [loading, setLoading] = useState(true);
 
   // New publication state
@@ -161,6 +162,7 @@ export default function Ontdekken() {
   }, [searchExpanded]);
 
   useEffect(() => {
+    loadPublicGroups();
     if (activeView === "ontdekken") {
       loadPublications();
     }
@@ -262,6 +264,32 @@ export default function Ontdekken() {
     } else {
       setMyGroups([]);
     }
+  };
+
+  const loadPublicGroups = async () => {
+    const { data: groups } = await supabase
+      .from("study_groups")
+      .select("id, name, avatar_url, banner_url, bio, owner_id, is_public")
+      .eq("is_public", true)
+      .order("created_at", { ascending: false });
+
+    const enrichedGroups: StudyGroup[] = [];
+    for (const group of groups || []) {
+      const { count } = await supabase
+        .from("group_members")
+        .select("*", { count: "exact", head: true })
+        .eq("group_id", group.id)
+        .eq("status", "accepted");
+
+      enrichedGroups.push({
+        ...group,
+        banner_url: group.banner_url || null,
+        bio: group.bio || null,
+        member_count: (count || 0) + 1,
+      });
+    }
+
+    setPublicGroups(enrichedGroups);
   };
 
   const loadMyProfile = async () => {
