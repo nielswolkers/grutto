@@ -316,19 +316,37 @@ export default function Studie() {
   const checkActiveSession = async () => {
     if (!user) return;
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("study_sessions")
       .select("*")
       .eq("user_id", user.id)
       .eq("is_active", true)
-      .maybeSingle();
+      .order("started_at", { ascending: false })
+      .limit(1);
 
-    if (data) {
-      setIsStudying(true);
-      setStudyStartTime(new Date(data.started_at));
-      setCurrentSessionId(data.id);
-      setElapsedTime(Math.floor((Date.now() - new Date(data.started_at).getTime()) / 1000));
+    if (error) {
+      console.error("checkActiveSession error:", error);
+      return;
     }
+    const active = data?.[0];
+    if (!active) return;
+
+    // Auto-close stuck sessions older than 12 hours so the timer UI keeps working.
+    const startedMs = new Date(active.started_at).getTime();
+    const ageHours = (Date.now() - startedMs) / 36e5;
+    if (ageHours > 12) {
+      await supabase
+        .from("study_sessions")
+        .update({ is_active: false, ended_at: new Date().toISOString(), duration_minutes: 0 })
+        .eq("user_id", user.id)
+        .eq("is_active", true);
+      return;
+    }
+
+    setIsStudying(true);
+    setStudyStartTime(new Date(active.started_at));
+    setCurrentSessionId(active.id);
+    setElapsedTime(Math.floor((Date.now() - startedMs) / 1000));
   };
 
   const loadActiveSessions = async () => {
@@ -383,6 +401,13 @@ export default function Studie() {
     if (!user) return;
 
     try {
+      // Defensive: clean any lingering active session for this user before starting a new one
+      await supabase
+        .from("study_sessions")
+        .update({ is_active: false, ended_at: new Date().toISOString() })
+        .eq("user_id", user.id)
+        .eq("is_active", true);
+
       const { data, error } = await supabase
         .from("study_sessions")
         .insert({
@@ -401,9 +426,9 @@ export default function Studie() {
       setElapsedTime(0);
       setPausedElapsedTime(0);
       toast.success("Studiesessie gestart");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to start session:", error);
-      toast.error("Kon studiesessie niet starten");
+      toast.error(error?.message || "Kon studiesessie niet starten");
     }
   };
 
@@ -544,9 +569,9 @@ export default function Studie() {
       }
 
       setGroups(groupsWithMembers);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to load groups:", error);
-      toast.error("Kon groepen niet laden");
+      toast.error(error?.message || "Kon groepen niet laden");
     } finally {
       setLoading(false);
     }
