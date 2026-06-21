@@ -19,6 +19,8 @@ interface ResultItem {
   link: string;
   reason: string;
   citation: string;
+  source?: "scholar" | "news";
+  published_date?: string | null;
 }
 interface AssistantPayload {
   intro?: string;
@@ -143,9 +145,9 @@ export default function Scholar() {
   }
 
   const suggestions = useMemo(() => [
-    "Recente reviews over transformer-interpretatie sinds 2022",
-    "Meest geciteerde papers over CRISPR off-target effecten",
-    "Open-access studies over LLM hallucinations vanaf 2023",
+    "Recente studies over transformer-interpretatie sinds 2022",
+    "Nieuwsartikelen over EU AI Act van de afgelopen maand",
+    "Bronnen over CRISPR off-target effecten (studies + nieuws)",
   ], []);
 
   return (
@@ -229,7 +231,7 @@ export default function Scholar() {
                 <AssistantMessage key={m.id} message={m} onFollowUp={send} />
               ))
             )}
-            {sending && <div className="flex items-center gap-2 text-base text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Zoeken in OpenAlex…</div>}
+            {sending && <div className="flex items-center gap-2 text-base text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Onderzoeken… (synoniemen, meerdere rondes)</div>}
           </div>
         </div>
 
@@ -250,7 +252,7 @@ export default function Scholar() {
                   <Send className="w-4 h-4" />
                 </Button>
               </div>
-              <p className="text-center text-xs text-muted-foreground mt-2">Resultaten van OpenAlex. Verifieer altijd citaties.</p>
+              <p className="text-center text-xs text-muted-foreground mt-2">Bronnen uit OpenAlex (studies) en nieuwsartikelen via web-search. Verifieer altijd citaties.</p>
             </div>
           </div>
         </div>
@@ -325,6 +327,17 @@ function ResultCard({ r, index }: { r: ResultItem; index: number }) {
       className="flex gap-3 items-stretch"
     >
       <div className="flex-1 rounded-2xl border bg-card p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-1">
+          <span className={cn(
+            "text-[10px] uppercase tracking-wide font-semibold px-2 py-0.5 rounded-full",
+            r.source === "news" ? "bg-amber-100 text-amber-900" : "bg-indigo-100 text-indigo-900",
+          )}>
+            {r.source === "news" ? "Nieuws" : "Studie"}
+          </span>
+          {r.published_date && r.source === "news" && (
+            <span className="text-xs text-muted-foreground">{new Date(r.published_date).toLocaleDateString("nl-NL")}</span>
+          )}
+        </div>
         <h3 className="font-semibold text-lg leading-snug">{stripStars(r.title)}</h3>
         <p className="text-sm text-muted-foreground mt-1">
           {(r.authors || []).slice(0, 4).join(", ")}{r.authors && r.authors.length > 4 ? " e.a." : ""}
@@ -332,8 +345,8 @@ function ResultCard({ r, index }: { r: ResultItem; index: number }) {
           {r.venue ? ` · ${stripStars(r.venue)}` : ""}
         </p>
         <div className="flex flex-wrap gap-2 mt-2 text-sm text-muted-foreground">
-          <span>{r.cited_by_count.toLocaleString()} citaties</span>
-          {r.open_access && <span className="text-emerald-600">Open Access</span>}
+          {r.source !== "news" && <span>{r.cited_by_count.toLocaleString()} citaties</span>}
+          {r.open_access && r.source !== "news" && <span className="text-emerald-600">Open Access</span>}
         </div>
         {r.reason && <p className="text-base mt-3 leading-relaxed">{stripStars(r.reason)}</p>}
       </div>
