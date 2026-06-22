@@ -37,9 +37,33 @@ interface Message {
 
 function stripStars(text: string) {
   return text
+    .replace(/^\s*json\s*/i, "")
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/```\s*$/i, "")
     .replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, "$2")
-    .replace(/\*+/g, "")
-    .replace(/`+/g, "");
+    .replace(/[\*`_]+/g, "")
+    .trim();
+}
+
+function safePayloadFromContent(content: string, payload?: AssistantPayload): AssistantPayload | undefined {
+  if (payload?.results?.length) return payload;
+  const cleaned = stripStars(content || "");
+  if (!cleaned.includes('"results"')) return payload;
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start < 0 || end <= start) return payload;
+  try {
+    const parsed = JSON.parse(cleaned.slice(start, end + 1));
+    return {
+      intro: stripStars(parsed.intro || ""),
+      results: Array.isArray(parsed.results) ? parsed.results : [],
+      comparison: stripStars(parsed.comparison || ""),
+      followUps: Array.isArray(parsed.followUps) ? parsed.followUps.map(stripStars) : [],
+    };
+  } catch {
+    return payload;
+  }
 }
 
 export default function Scholar() {
@@ -71,7 +95,7 @@ export default function Scholar() {
       id: m.id,
       role: m.role,
       content: typeof m.parts?.text === "string" ? stripStars(m.parts.text) : "",
-      payload: m.parts?.payload,
+      payload: safePayloadFromContent(typeof m.parts?.text === "string" ? m.parts.text : "", m.parts?.payload),
     })));
   }
 
@@ -118,10 +142,10 @@ export default function Scholar() {
       });
       if (error) throw error;
       const payload: AssistantPayload = {
-        intro: data?.intro,
+        intro: stripStars(data?.intro || ""),
         results: data?.results || [],
-        comparison: data?.comparison,
-        followUps: data?.followUps || [],
+        comparison: stripStars(data?.comparison || ""),
+        followUps: (data?.followUps || []).map(stripStars),
       };
       const assistant: Message = {
         id: crypto.randomUUID(),
@@ -245,7 +269,7 @@ export default function Scholar() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
-                  placeholder="Vraag Scholar AI naar papers, auteurs, onderwerpen…"
+                  placeholder="Vraag Grutto AI naar studies, nieuws of bronnen…"
                   className="resize-none border-0 focus-visible:ring-0 min-h-[44px] max-h-40 text-base bg-transparent"
                 />
                 <Button onClick={() => send(input)} disabled={!input.trim() || sending} size="icon" className="rounded-full shrink-0">
@@ -262,7 +286,7 @@ export default function Scholar() {
 }
 
 function AssistantMessage({ message, onFollowUp }: { message: Message; onFollowUp: (s: string) => void }) {
-  const p = message.payload;
+  const p = safePayloadFromContent(message.content, message.payload);
   const results = p?.results || [];
   return (
     <div className="space-y-4">
@@ -311,8 +335,8 @@ function AssistantMessage({ message, onFollowUp }: { message: Message; onFollowU
 }
 
 function ResultCard({ r, index }: { r: ResultItem; index: number }) {
-  const link = (r.link || "").trim();
-  const citation = r.citation || `${(r.authors || []).join(", ")} (${r.year ?? "n.d."}). ${r.title}. ${r.venue ?? ""}`.trim();
+  const link = stripStars(r.link || "").trim();
+  const citation = stripStars(r.citation || `${(r.authors || []).join(", ")} (${r.year ?? "n.d."}). ${r.title}. ${r.venue ?? ""}`.trim());
 
   const copy = async () => {
     try { await navigator.clipboard.writeText(citation); toast.success("Citatie gekopieerd"); }

@@ -144,6 +144,64 @@ function hostnameOf(url?: string) {
   try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return null; }
 }
 
+function stripUiMarkup(value: any) {
+  return typeof value === "string"
+    ? value
+      .replace(/^\s*json\s*/i, "")
+      .replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, "$2")
+      .replace(/[\*`_]+/g, "")
+      .trim()
+    : value;
+}
+
+function extractJsonObject(raw: string) {
+  let cleaned = raw
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .replace(/^\s*json\s*/i, "")
+    .trim();
+
+  if (!cleaned.startsWith("{")) {
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start >= 0 && end > start) cleaned = cleaned.slice(start, end + 1);
+  }
+
+  return JSON.parse(cleaned);
+}
+
+function deterministicPayload(prompt: string, candidates: any[], rawIntro?: string) {
+  const results = candidates.slice(0, 5).map((r) => ({
+    title: stripUiMarkup(r.title) || "Bron zonder titel",
+    authors: Array.isArray(r.authors) ? r.authors.slice(0, 6).map(stripUiMarkup).filter(Boolean) : [],
+    year: typeof r.year === "number" ? r.year : null,
+    venue: stripUiMarkup(r.venue) || hostnameOf(r.link) || null,
+    cited_by_count: Number(r.cited_by_count || 0),
+    open_access: Boolean(r.open_access),
+    link: stripUiMarkup(r.link) || "",
+    reason: stripUiMarkup(r.abstract) || `Deze bron sluit aan op de zoekvraag: ${prompt}`,
+    citation: `${Array.isArray(r.authors) && r.authors.length ? `${r.authors.slice(0, 3).join(", ")} ` : ""}${r.year ? `(${r.year}). ` : ""}${r.title || "Bron zonder titel"}.${r.venue ? ` ${r.venue}.` : ""}`,
+    source: r.source === "news" ? "news" : "scholar",
+    published_date: r.published_date ?? null,
+  }));
+
+  return {
+    intro: results.length
+      ? "Ik heb de meest relevante bronnen hieronder gezet."
+      : stripUiMarkup(rawIntro) || "Ik kon geen betrouwbare bronnen vinden voor deze zoekvraag.",
+    results,
+    comparison: results.length
+      ? "De bronnen zijn geselecteerd op relevantie voor je vraag. Studies komen uit OpenAlex; nieuwsbronnen komen uit web-search."
+      : "Er waren onvoldoende betrouwbare resultaten om te vergelijken.",
+    followUps: [
+      "Zoek alleen wetenschappelijke studies over dit onderwerp",
+      "Zoek alleen recente nieuwsartikelen over dit onderwerp",
+      "Vergelijk de belangrijkste bronnen inhoudelijk",
+    ],
+  };
+}
+
 // ============== Agent loop ==============
 const PLANNER_SYSTEM = `Je bent Scholar AI, een onderzoeksagent. Je doel: voor de gebruiker zo grondig mogelijk relevante bronnen vinden.
 
@@ -344,23 +402,23 @@ Deno.serve(async (req) => {
 
       // No more tool calls → final JSON answer expected
       const raw = msg.content ?? "{}";
-      let payload: any = {};
-      try { payload = JSON.parse(raw); } catch { payload = { intro: raw, results: [], comparison: "", followUps: [] }; }
+      let payload: any;
+      try { payload = extractJsonObject(raw); } catch { payload = deterministicPayload(prompt, allResults, raw); }
 
-      const clean = (s: any) => typeof s === "string"
-        ? s.replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, "$2").replace(/\*+/g, "").replace(/`+/g, "")
-        : s;
-      payload.intro = clean(payload.intro) || "";
-      payload.comparison = clean(payload.comparison) || "";
-      payload.followUps = Array.isArray(payload.followUps) ? payload.followUps.map(clean).filter(Boolean).slice(0, 3) : [];
+      payload.intro = stripUiMarkup(payload.intro) || "";
+      payload.comparison = stripUiMarkup(payload.comparison) || "";
+      payload.followUps = Array.isArray(payload.followUps) ? payload.followUps.map(stripUiMarkup).filter(Boolean).slice(0, 3) : [];
       payload.results = Array.isArray(payload.results) ? payload.results.map((r: any) => ({
         ...r,
-        title: clean(r.title),
-        reason: clean(r.reason),
-        citation: clean(r.citation),
-        venue: clean(r.venue),
+        title: stripUiMarkup(r.title),
+        reason: stripUiMarkup(r.reason),
+        citation: stripUiMarkup(r.citation),
+        venue: stripUiMarkup(r.venue),
+        link: stripUiMarkup(r.link),
         source: r.source === "news" ? "news" : "scholar",
-      })) : [];
+      })).filter((r: any) => r.title && r.link).slice(0, 8) : [];
+
+      if (!payload.results.length && allResults.length) payload = deterministicPayload(prompt, allResults, payload.intro);
 
       return new Response(JSON.stringify({
         ...payload,
