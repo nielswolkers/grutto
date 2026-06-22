@@ -146,6 +146,7 @@ export default function Ontdekken() {
   // Group membership check
   const [myGroupIds, setMyGroupIds] = useState<Set<string>>(new Set());
   const [myGroups, setMyGroups] = useState<StudyGroup[]>([]);
+  const [publicGroups, setPublicGroups] = useState<StudyGroup[]>([]);
   const [adminGroupIds, setAdminGroupIds] = useState<Set<string>>(new Set());
   const [pendingOpenCommunityId, setPendingOpenCommunityId] = useState<string | null>(
     (location.state as any)?.openCommunityId || null
@@ -161,11 +162,10 @@ export default function Ontdekken() {
   }, [searchExpanded]);
 
   useEffect(() => {
-    if (activeView === "ontdekken") {
-      loadPublications();
-    }
+    if (activeView === "ontdekken") loadPublications();
     loadMyProfile();
     loadMyGroups();
+    loadPublicGroups();
 
     const channel = supabase
       .channel("publications-realtime")
@@ -228,7 +228,10 @@ export default function Ontdekken() {
       adminIds.add(g.id); // Owners are also admins
     });
     memberGroups?.forEach(m => ids.add(m.group_id));
-    adminGroups?.forEach(a => adminIds.add(a.group_id));
+    adminGroups?.forEach(a => {
+      ids.add(a.group_id);
+      adminIds.add(a.group_id);
+    });
     
     setMyGroupIds(ids);
     setAdminGroupIds(adminIds);
@@ -262,6 +265,37 @@ export default function Ontdekken() {
     } else {
       setMyGroups([]);
     }
+  };
+
+  const loadPublicGroups = async () => {
+    const { data, error } = await supabase
+      .from("study_groups")
+      .select("id, name, avatar_url, banner_url, bio, owner_id, is_public")
+      .eq("is_public", true)
+      .order("created_at", { ascending: false })
+      .limit(48);
+
+    if (error) {
+      console.error("Failed to load public communities:", error);
+      toast.error("Kon communities niet laden");
+      return;
+    }
+
+    const enrichedGroups: StudyGroup[] = [];
+    for (const group of data || []) {
+      const { count } = await supabase
+        .from("group_members")
+        .select("*", { count: 'exact', head: true })
+        .eq("group_id", group.id)
+        .eq("status", "accepted");
+      enrichedGroups.push({
+        ...group,
+        banner_url: group.banner_url || null,
+        bio: group.bio || null,
+        member_count: (count || 0) + 1,
+      });
+    }
+    setPublicGroups(enrichedGroups);
   };
 
   const loadMyProfile = async () => {
@@ -795,7 +829,7 @@ export default function Ontdekken() {
           )}
         </div>
       ) : (
-        // Ontdekken View - Search + Publications Feed only
+        // Ontdekken View - Communities + Publications Feed
         <div className="space-y-6">
           {/* Search Bar */}
           <div className="sticky top-0 z-10 bg-background pb-4">
@@ -889,6 +923,24 @@ export default function Ontdekken() {
               </Card>
             )}
           </div>
+
+          {publicGroups.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {publicGroups.map((group) => (
+                <CommunityCard
+                  key={group.id}
+                  id={group.id}
+                  name={group.name}
+                  avatar_url={group.avatar_url}
+                  banner_url={group.banner_url}
+                  bio={group.bio}
+                  member_count={group.member_count || 1}
+                  isVerified={isGroupVerified(group.id)}
+                  isAdmin={adminGroupIds.has(group.id) || group.owner_id === user?.id}
+                />
+              ))}
+            </div>
+          )}
 
           {/* Publications Feed - Constrained width */}
           <div className="max-w-2xl mx-auto">

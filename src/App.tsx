@@ -10,7 +10,6 @@ import DashboardLayout from "./pages/DashboardLayout";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
 import Materialen from "./pages/Materialen";
-import Apps from "./pages/Apps";
 import Scholar from "./pages/Scholar";
 import StudySetView from "./pages/StudySetView";
 import FolderView from "./pages/FolderView";
@@ -86,8 +85,9 @@ function AppRoutes() {
         <Route path="/groep/:groupId" element={<GroupProfile />} />
         <Route path="/community/:communityId" element={<CommunityPage />} />
         <Route path="/instellingen" element={<Settings />} />
-        <Route path="/apps" element={<Apps />} />
-        <Route path="/apps/scholar" element={<Scholar />} />
+        <Route path="/grutto-ai" element={<Scholar />} />
+        <Route path="/apps" element={<Navigate to="/grutto-ai" replace />} />
+        <Route path="/apps/scholar" element={<Navigate to="/grutto-ai" replace />} />
         <Route path="/studieset/:setId" element={<StudySetView />} />
       </Route>
       <Route path="*" element={<NotFound />} />

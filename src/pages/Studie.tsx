@@ -354,6 +354,7 @@ export default function Studie() {
 
     const groupMemberIds = new Set<string>();
     groups.forEach(group => {
+      groupMemberIds.add(group.owner_id);
       group.members?.forEach(member => {
         if (member.status === 'accepted') {
           groupMemberIds.add(member.user_id);
@@ -526,13 +527,25 @@ export default function Studie() {
       }
 
       const memberGroupIds = memberGroups?.map(m => m.group_id) || [];
+
+      const { data: adminGroups, error: adminError } = await supabase
+        .from("group_admins")
+        .select("group_id")
+        .eq("user_id", user.id);
+
+      if (adminError) {
+        console.error("Error loading admin groups:", adminError);
+      }
+
+      const adminGroupIds = adminGroups?.map(a => a.group_id) || [];
+      const relatedGroupIds = Array.from(new Set([...memberGroupIds, ...adminGroupIds]));
       
       let joinedGroups: StudyGroup[] = [];
-      if (memberGroupIds.length > 0) {
+      if (relatedGroupIds.length > 0) {
         const { data } = await supabase
           .from("study_groups")
           .select("*")
-          .in("id", memberGroupIds);
+          .in("id", relatedGroupIds);
         joinedGroups = (data || []).map(g => ({ ...g, is_public: g.is_public ?? false }));
       }
 
