@@ -95,6 +95,69 @@ function hostnameOf(url?: string) {
   try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return null; }
 }
 
+const MONTHS_NL = ["januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"];
+const MONTH_LOOKUP: Record<string, number> = {
+  januari: 1, februari: 2, maart: 3, april: 4, mei: 5, juni: 6, juli: 7, augustus: 8, september: 9, oktober: 10, november: 11, december: 12,
+  jan: 1, feb: 2, mrt: 3, apr: 4, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, okt: 10, nov: 11, dec: 12,
+  january: 1, february: 2, march: 3, may: 5, june: 6, july: 7, october: 10,
+};
+function toIsoDate(input: unknown): string | null {
+  if (!input) return null;
+  const s = String(input).trim();
+  if (!s) return null;
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const dmy = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if (dmy) {
+    const d = +dmy[1], m = +dmy[2]; let y = +dmy[3]; if (y < 100) y += 2000;
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+  }
+  const word = s.toLowerCase().match(/(\d{1,2})\s+([a-zéû]+)\.?\s+(\d{4})/) ||
+    s.toLowerCase().match(/([a-zéû]+)\.?\s+(\d{1,2}),?\s+(\d{4})/);
+  if (word) {
+    const a = word[1], b = word[2], c = word[3];
+    const monthWord = isNaN(+a) ? a : b;
+    const dayStr = isNaN(+a) ? b : a;
+    const m = MONTH_LOOKUP[monthWord];
+    if (m) {
+      const d = +dayStr, y = +c;
+      return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+  }
+  const t = Date.parse(s);
+  if (!isNaN(t)) {
+    const d = new Date(t);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  }
+  return null;
+}
+
+function formatDateNl(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${d} ${MONTHS_NL[m - 1]} ${y}`;
+}
+
+function formatHarvardNews(opts: {
+  authors: string[]; isoDate: string | null; title: string; venue: string | null; url: string;
+}) {
+  const author = opts.authors && opts.authors.length ? opts.authors.slice(0, 3).join(", ") : (opts.venue || "Onbekende auteur");
+  const year = opts.isoDate ? opts.isoDate.slice(0, 4) : "n.d.";
+  const dayMonth = opts.isoDate ? formatDateNl(opts.isoDate) : "n.d.";
+  const now = new Date();
+  const accessed = `${now.getUTCDate()} ${MONTHS_NL[now.getUTCMonth()]} ${now.getUTCFullYear()}`;
+  return `${author} (${year}) '${opts.title}', ${opts.venue ?? "Onbekend medium"}, ${dayMonth}. Beschikbaar via: ${opts.url} (Geraadpleegd: ${accessed}).`;
+}
+
+function formatHarvardScholar(opts: {
+  authors: string[]; year: number | null; title: string; venue: string | null; url: string;
+}) {
+  const author = opts.authors && opts.authors.length ? opts.authors.slice(0, 3).join(", ") : "Onbekende auteur";
+  const year = opts.year ?? "n.d.";
+  return `${author} (${year}) '${opts.title}'${opts.venue ? `, ${opts.venue}` : ""}. Beschikbaar via: ${opts.url}.`;
+}
+
 async function firecrawlNewsSearch(args: {
   query: string;
   from_date?: string;
@@ -133,24 +196,31 @@ async function firecrawlNewsSearch(args: {
     }
     const json = await res.json();
     const items: any[] = json?.data?.news ?? json?.data?.web ?? json?.data ?? [];
+    const todayIso = new Date().toISOString().slice(0, 10);
     const results = items.map((it: any) => {
       const rawUrl = it.url ?? it.link ?? it.sourceURL ?? "";
       const url = normalizeUrl(rawUrl);
       const host = hostnameOf(url);
-      const dateStr = it.date ?? it.publishedDate ?? it.published_at ?? null;
+      const rawDate = it.date ?? it.publishedDate ?? it.published_at ?? it.published ?? it.metadata?.publishedTime ?? it.metadata?.date ?? null;
+      const iso = toIsoDate(rawDate) ?? todayIso;
+      const author = it.author ?? it.metadata?.author ?? null;
+      const authors = author ? [String(author)] : [];
+      const venue = it.source ?? it.metadata?.siteName ?? host ?? null;
+      const title = it.title ?? it.metadata?.title ?? url ?? "Untitled";
       return {
         source: "news" as const,
-        title: it.title ?? url ?? "Untitled",
-        authors: it.author ? [String(it.author)] : [],
-        year: dateStr ? new Date(dateStr).getUTCFullYear() : null,
-        published_date: dateStr,
-        venue: it.source ?? host,
+        title,
+        authors,
+        year: iso ? Number(iso.slice(0, 4)) : null,
+        published_date: iso,
+        venue,
         cited_by_count: 0,
         open_access: true,
         link: url,
         favicon: host ? `https://www.google.com/s2/favicons?domain=${host}&sz=64` : null,
         language: null,
         abstract: it.description ?? it.snippet ?? it.markdown ?? "",
+        citation: formatHarvardNews({ authors, isoDate: iso, title, venue, url }),
       };
     }).filter((r: any) => r.link);
     return { total: results.length, results };
