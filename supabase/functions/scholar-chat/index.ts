@@ -59,18 +59,25 @@ async function openAlexSearch(args: {
     const res = await fetch(url, { headers: { Accept: "application/json" }, signal: controller.signal });
     if (!res.ok) return { error: `OpenAlex ${res.status}`, results: [] };
     const json = await res.json() as { meta?: { count?: number }; results?: OAWork[] };
-    const results = (json.results ?? []).map((w) => ({
-      source: "scholar" as const,
-      title: w.title ?? "Untitled",
-      authors: (w.authorships ?? []).slice(0, 6).map((a) => a.author?.display_name).filter(Boolean) as string[],
-      year: w.publication_year,
-      venue: w.primary_location?.source?.display_name ?? null,
-      cited_by_count: w.cited_by_count ?? 0,
-      open_access: w.open_access?.is_oa ?? false,
-      link: w.doi ?? w.primary_location?.landing_page_url ?? w.id,
-      language: w.language ?? null,
-      abstract: reconstructAbstract(w.abstract_inverted_index).slice(0, 500),
-    }));
+    const results = (json.results ?? []).map((w) => {
+      const authors = (w.authorships ?? []).slice(0, 6).map((a) => a.author?.display_name).filter(Boolean) as string[];
+      const title = w.title ?? "Untitled";
+      const venue = w.primary_location?.source?.display_name ?? null;
+      const link = w.doi ?? w.primary_location?.landing_page_url ?? w.id;
+      return {
+        source: "scholar" as const,
+        title,
+        authors,
+        year: w.publication_year,
+        venue,
+        cited_by_count: w.cited_by_count ?? 0,
+        open_access: w.open_access?.is_oa ?? false,
+        link,
+        language: w.language ?? null,
+        abstract: reconstructAbstract(w.abstract_inverted_index).slice(0, 500),
+        citation: formatHarvardScholar({ authors, year: w.publication_year, title, venue, url: link }),
+      };
+    });
     return { total: json.meta?.count ?? results.length, results };
   } catch (e) {
     return { error: (e as Error).message, results: [] };
