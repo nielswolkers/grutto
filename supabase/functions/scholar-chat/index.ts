@@ -80,11 +80,26 @@ async function openAlexSearch(args: {
 }
 
 // ============== Firecrawl news ==============
+function normalizeUrl(u?: string | null): string {
+  if (!u) return "";
+  const s = String(u).trim();
+  if (!s) return "";
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.startsWith("//")) return `https:${s}`;
+  if (/^[\w.-]+\.[a-z]{2,}(\/|$)/i.test(s)) return `https://${s}`;
+  return s;
+}
+
+function hostnameOf(url?: string) {
+  if (!url) return null;
+  try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return null; }
+}
+
 async function firecrawlNewsSearch(args: {
   query: string;
-  from_date?: string;   // YYYY-MM-DD
-  to_date?: string;     // YYYY-MM-DD
-  source_site?: string; // e.g. nrc.nl
+  from_date?: string;
+  to_date?: string;
+  source_site?: string;
   max?: number;
   tbs?: "qdr:d" | "qdr:w" | "qdr:m" | "qdr:y";
 }) {
@@ -95,7 +110,7 @@ async function firecrawlNewsSearch(args: {
   if (args.to_date) parts.push(`before:${args.to_date}`);
   const body: Record<string, any> = {
     query: parts.join(" "),
-    limit: Math.min(args.max ?? 8, 15),
+    limit: Math.min(args.max ?? 10, 20),
     sources: ["news"],
   };
   if (args.tbs) body.tbs = args.tbs;
@@ -118,30 +133,32 @@ async function firecrawlNewsSearch(args: {
     }
     const json = await res.json();
     const items: any[] = json?.data?.news ?? json?.data?.web ?? json?.data ?? [];
-    const results = items.map((it: any) => ({
-      source: "news" as const,
-      title: it.title ?? it.url ?? "Untitled",
-      authors: it.author ? [String(it.author)] : [],
-      year: it.publishedDate ? new Date(it.publishedDate).getUTCFullYear() : null,
-      published_date: it.publishedDate ?? null,
-      venue: it.snippet?.match?.(/^([^|–-]+)/)?.[1]?.trim() ?? it.source ?? hostnameOf(it.url),
-      cited_by_count: 0,
-      open_access: true,
-      link: it.url,
-      language: null,
-      abstract: it.description ?? it.snippet ?? "",
-    }));
+    const results = items.map((it: any) => {
+      const rawUrl = it.url ?? it.link ?? it.sourceURL ?? "";
+      const url = normalizeUrl(rawUrl);
+      const host = hostnameOf(url);
+      const dateStr = it.date ?? it.publishedDate ?? it.published_at ?? null;
+      return {
+        source: "news" as const,
+        title: it.title ?? url ?? "Untitled",
+        authors: it.author ? [String(it.author)] : [],
+        year: dateStr ? new Date(dateStr).getUTCFullYear() : null,
+        published_date: dateStr,
+        venue: it.source ?? host,
+        cited_by_count: 0,
+        open_access: true,
+        link: url,
+        favicon: host ? `https://www.google.com/s2/favicons?domain=${host}&sz=64` : null,
+        language: null,
+        abstract: it.description ?? it.snippet ?? it.markdown ?? "",
+      };
+    }).filter((r: any) => r.link);
     return { total: results.length, results };
   } catch (e) {
     return { error: (e as Error).message, results: [] };
   } finally {
     clearTimeout(t);
   }
-}
-
-function hostnameOf(url?: string) {
-  if (!url) return null;
-  try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return null; }
 }
 
 function stripUiMarkup(value: any) {
@@ -172,19 +189,25 @@ function extractJsonObject(raw: string) {
 }
 
 function deterministicPayload(prompt: string, candidates: any[], rawIntro?: string) {
-  const results = candidates.slice(0, 5).map((r) => ({
-    title: stripUiMarkup(r.title) || "Bron zonder titel",
-    authors: Array.isArray(r.authors) ? r.authors.slice(0, 6).map(stripUiMarkup).filter(Boolean) : [],
-    year: typeof r.year === "number" ? r.year : null,
-    venue: stripUiMarkup(r.venue) || hostnameOf(r.link) || null,
-    cited_by_count: Number(r.cited_by_count || 0),
-    open_access: Boolean(r.open_access),
-    link: stripUiMarkup(r.link) || "",
-    reason: stripUiMarkup(r.abstract) || `Deze bron sluit aan op de zoekvraag: ${prompt}`,
-    citation: `${Array.isArray(r.authors) && r.authors.length ? `${r.authors.slice(0, 3).join(", ")} ` : ""}${r.year ? `(${r.year}). ` : ""}${r.title || "Bron zonder titel"}.${r.venue ? ` ${r.venue}.` : ""}`,
-    source: r.source === "news" ? "news" : "scholar",
-    published_date: r.published_date ?? null,
-  }));
+  const results = candidates.slice(0, 5).map((r) => {
+    const link = normalizeUrl(stripUiMarkup(r.link) || "");
+    const host = hostnameOf(link);
+    return {
+      title: stripUiMarkup(r.title) || "Bron zonder titel",
+      authors: Array.isArray(r.authors) ? r.authors.slice(0, 6).map(stripUiMarkup).filter(Boolean) : [],
+      year: typeof r.year === "number" ? r.year : null,
+      venue: stripUiMarkup(r.venue) || host || null,
+      cited_by_count: Number(r.cited_by_count || 0),
+      open_access: Boolean(r.open_access),
+      link,
+      favicon: r.favicon ?? (host ? `https://www.google.com/s2/favicons?domain=${host}&sz=64` : null),
+      reason: stripUiMarkup(r.abstract) || `Deze bron sluit aan op de zoekvraag: ${prompt}`,
+      citation: `${Array.isArray(r.authors) && r.authors.length ? `${r.authors.slice(0, 3).join(", ")} ` : ""}${r.year ? `(${r.year}). ` : ""}${r.title || "Bron zonder titel"}.${r.venue ? ` ${r.venue}.` : ""}`,
+      source: r.source === "news" ? "news" : "scholar",
+      published_date: r.published_date ?? null,
+    };
+  });
+
 
   return {
     intro: results.length
@@ -408,15 +431,23 @@ Deno.serve(async (req) => {
       payload.intro = stripUiMarkup(payload.intro) || "";
       payload.comparison = stripUiMarkup(payload.comparison) || "";
       payload.followUps = Array.isArray(payload.followUps) ? payload.followUps.map(stripUiMarkup).filter(Boolean).slice(0, 3) : [];
-      payload.results = Array.isArray(payload.results) ? payload.results.map((r: any) => ({
-        ...r,
-        title: stripUiMarkup(r.title),
-        reason: stripUiMarkup(r.reason),
-        citation: stripUiMarkup(r.citation),
-        venue: stripUiMarkup(r.venue),
-        link: stripUiMarkup(r.link),
-        source: r.source === "news" ? "news" : "scholar",
-      })).filter((r: any) => r.title && r.link).slice(0, 8) : [];
+      payload.results = Array.isArray(payload.results) ? payload.results.map((r: any) => {
+        const link = normalizeUrl(stripUiMarkup(r.link));
+        const host = hostnameOf(link);
+        // Find matching candidate from tool results to enrich with favicon/venue when LLM dropped fields
+        const match = allResults.find((c) => (c.link || "").toLowerCase() === (r.link || "").toLowerCase()) ||
+          allResults.find((c) => (c.title || "").toLowerCase() === (r.title || "").toLowerCase());
+        return {
+          ...r,
+          title: stripUiMarkup(r.title),
+          reason: stripUiMarkup(r.reason),
+          citation: stripUiMarkup(r.citation),
+          venue: stripUiMarkup(r.venue) || match?.venue || host,
+          link,
+          favicon: match?.favicon ?? (host ? `https://www.google.com/s2/favicons?domain=${host}&sz=64` : null),
+          source: r.source === "news" ? "news" : "scholar",
+        };
+      }).filter((r: any) => r.title && r.link).slice(0, 8) : [];
 
       if (!payload.results.length && allResults.length) payload = deterministicPayload(prompt, allResults, payload.intro);
 

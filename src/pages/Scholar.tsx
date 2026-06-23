@@ -21,6 +21,7 @@ interface ResultItem {
   citation: string;
   source?: "scholar" | "news";
   published_date?: string | null;
+  favicon?: string | null;
 }
 interface AssistantPayload {
   intro?: string;
@@ -334,8 +335,23 @@ function AssistantMessage({ message, onFollowUp }: { message: Message; onFollowU
   );
 }
 
+function ensureProtocol(u: string) {
+  const s = (u || "").trim();
+  if (!s) return "";
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.startsWith("//")) return `https:${s}`;
+  if (/^[\w.-]+\.[a-z]{2,}(\/|$)/i.test(s)) return `https://${s}`;
+  return s;
+}
+
+function hostOf(u: string) {
+  try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return null; }
+}
+
 function ResultCard({ r, index }: { r: ResultItem; index: number }) {
-  const link = stripStars(r.link || "").trim();
+  const link = ensureProtocol(stripStars(r.link || "").trim());
+  const host = hostOf(link);
+  const favicon = r.favicon || (host ? `https://www.google.com/s2/favicons?domain=${host}&sz=64` : null);
   const citation = stripStars(r.citation || `${(r.authors || []).join(", ")} (${r.year ?? "n.d."}). ${r.title}. ${r.venue ?? ""}`.trim());
 
   const copy = async () => {
@@ -351,22 +367,34 @@ function ResultCard({ r, index }: { r: ResultItem; index: number }) {
       className="flex gap-3 items-stretch"
     >
       <div className="flex-1 rounded-2xl border bg-card p-5 shadow-sm">
-        <div className="flex items-center gap-2 mb-1">
+        <div className="flex items-center gap-2 mb-2">
+          {favicon ? (
+            <img
+              src={favicon}
+              alt={host || "bron"}
+              className="w-7 h-7 rounded-full border bg-white object-contain shrink-0"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-full bg-muted shrink-0" />
+          )}
           <span className={cn(
             "text-[10px] uppercase tracking-wide font-semibold px-2 py-0.5 rounded-full",
             r.source === "news" ? "bg-amber-100 text-amber-900" : "bg-indigo-100 text-indigo-900",
           )}>
             {r.source === "news" ? "Nieuws" : "Studie"}
           </span>
+          {r.venue && (
+            <span className="text-xs text-muted-foreground truncate">{stripStars(r.venue)}</span>
+          )}
           {r.published_date && r.source === "news" && (
-            <span className="text-xs text-muted-foreground">{new Date(r.published_date).toLocaleDateString("nl-NL")}</span>
+            <span className="text-xs text-muted-foreground">· {new Date(r.published_date).toLocaleDateString("nl-NL")}</span>
           )}
         </div>
         <h3 className="font-semibold text-lg leading-snug">{stripStars(r.title)}</h3>
         <p className="text-sm text-muted-foreground mt-1">
           {(r.authors || []).slice(0, 4).join(", ")}{r.authors && r.authors.length > 4 ? " e.a." : ""}
           {r.year ? ` · ${r.year}` : ""}
-          {r.venue ? ` · ${stripStars(r.venue)}` : ""}
         </p>
         <div className="flex flex-wrap gap-2 mt-2 text-sm text-muted-foreground">
           {r.source !== "news" && <span>{r.cited_by_count.toLocaleString()} citaties</span>}
