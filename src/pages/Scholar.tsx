@@ -335,8 +335,23 @@ function AssistantMessage({ message, onFollowUp }: { message: Message; onFollowU
   );
 }
 
+function ensureProtocol(u: string) {
+  const s = (u || "").trim();
+  if (!s) return "";
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.startsWith("//")) return `https:${s}`;
+  if (/^[\w.-]+\.[a-z]{2,}(\/|$)/i.test(s)) return `https://${s}`;
+  return s;
+}
+
+function hostOf(u: string) {
+  try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return null; }
+}
+
 function ResultCard({ r, index }: { r: ResultItem; index: number }) {
-  const link = stripStars(r.link || "").trim();
+  const link = ensureProtocol(stripStars(r.link || "").trim());
+  const host = hostOf(link);
+  const favicon = r.favicon || (host ? `https://www.google.com/s2/favicons?domain=${host}&sz=64` : null);
   const citation = stripStars(r.citation || `${(r.authors || []).join(", ")} (${r.year ?? "n.d."}). ${r.title}. ${r.venue ?? ""}`.trim());
 
   const copy = async () => {
