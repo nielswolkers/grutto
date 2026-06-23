@@ -21,6 +21,7 @@ interface ResultItem {
   citation: string;
   source?: "scholar" | "news";
   published_date?: string | null;
+  favicon?: string | null;
 }
 interface AssistantPayload {
   intro?: string;
