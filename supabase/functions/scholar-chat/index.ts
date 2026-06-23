@@ -511,18 +511,30 @@ Deno.serve(async (req) => {
       payload.results = Array.isArray(payload.results) ? payload.results.map((r: any) => {
         const link = normalizeUrl(stripUiMarkup(r.link));
         const host = hostnameOf(link);
-        // Find matching candidate from tool results to enrich with favicon/venue when LLM dropped fields
-        const match = allResults.find((c) => (c.link || "").toLowerCase() === (r.link || "").toLowerCase()) ||
-          allResults.find((c) => (c.title || "").toLowerCase() === (r.title || "").toLowerCase());
+        const match = allResults.find((c) => (c.link || "").toLowerCase() === link.toLowerCase()) ||
+          allResults.find((c) => (c.title || "").toLowerCase() === String(r.title || "").toLowerCase());
+        const source = r.source === "news" ? "news" : (match?.source ?? "scholar");
+        const published_date = toIsoDate(r.published_date) ?? match?.published_date ?? (source === "news" ? new Date().toISOString().slice(0, 10) : null);
+        const title = stripUiMarkup(r.title) || match?.title || "Bron zonder titel";
+        const venue = stripUiMarkup(r.venue) || match?.venue || host;
+        const authors = Array.isArray(r.authors) && r.authors.length ? r.authors.map(stripUiMarkup).filter(Boolean) : (match?.authors ?? []);
+        const year = typeof r.year === "number" ? r.year : (published_date ? Number(published_date.slice(0, 4)) : (match?.year ?? null));
+        // Always overwrite the citation with a server-built Harvard string so we control the format.
+        const citation = source === "news"
+          ? formatHarvardNews({ authors, isoDate: published_date, title, venue, url: link })
+          : formatHarvardScholar({ authors, year, title, venue, url: link });
         return {
           ...r,
-          title: stripUiMarkup(r.title),
-          reason: stripUiMarkup(r.reason),
-          citation: stripUiMarkup(r.citation),
-          venue: stripUiMarkup(r.venue) || match?.venue || host,
+          title,
+          authors,
+          year,
+          venue,
           link,
+          reason: stripUiMarkup(r.reason),
+          citation,
+          published_date,
           favicon: match?.favicon ?? (host ? `https://www.google.com/s2/favicons?domain=${host}&sz=64` : null),
-          source: r.source === "news" ? "news" : "scholar",
+          source,
         };
       }).filter((r: any) => r.title && r.link).slice(0, 8) : [];
 
