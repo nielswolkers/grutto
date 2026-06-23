@@ -367,22 +367,34 @@ function ResultCard({ r, index }: { r: ResultItem; index: number }) {
       className="flex gap-3 items-stretch"
     >
       <div className="flex-1 rounded-2xl border bg-card p-5 shadow-sm">
-        <div className="flex items-center gap-2 mb-1">
+        <div className="flex items-center gap-2 mb-2">
+          {favicon ? (
+            <img
+              src={favicon}
+              alt={host || "bron"}
+              className="w-7 h-7 rounded-full border bg-white object-contain shrink-0"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-full bg-muted shrink-0" />
+          )}
           <span className={cn(
             "text-[10px] uppercase tracking-wide font-semibold px-2 py-0.5 rounded-full",
             r.source === "news" ? "bg-amber-100 text-amber-900" : "bg-indigo-100 text-indigo-900",
           )}>
             {r.source === "news" ? "Nieuws" : "Studie"}
           </span>
+          {r.venue && (
+            <span className="text-xs text-muted-foreground truncate">{stripStars(r.venue)}</span>
+          )}
           {r.published_date && r.source === "news" && (
-            <span className="text-xs text-muted-foreground">{new Date(r.published_date).toLocaleDateString("nl-NL")}</span>
+            <span className="text-xs text-muted-foreground">· {new Date(r.published_date).toLocaleDateString("nl-NL")}</span>
           )}
         </div>
         <h3 className="font-semibold text-lg leading-snug">{stripStars(r.title)}</h3>
         <p className="text-sm text-muted-foreground mt-1">
           {(r.authors || []).slice(0, 4).join(", ")}{r.authors && r.authors.length > 4 ? " e.a." : ""}
           {r.year ? ` · ${r.year}` : ""}
-          {r.venue ? ` · ${stripStars(r.venue)}` : ""}
         </p>
         <div className="flex flex-wrap gap-2 mt-2 text-sm text-muted-foreground">
           {r.source !== "news" && <span>{r.cited_by_count.toLocaleString()} citaties</span>}
