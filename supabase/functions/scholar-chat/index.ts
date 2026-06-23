@@ -431,15 +431,23 @@ Deno.serve(async (req) => {
       payload.intro = stripUiMarkup(payload.intro) || "";
       payload.comparison = stripUiMarkup(payload.comparison) || "";
       payload.followUps = Array.isArray(payload.followUps) ? payload.followUps.map(stripUiMarkup).filter(Boolean).slice(0, 3) : [];
-      payload.results = Array.isArray(payload.results) ? payload.results.map((r: any) => ({
-        ...r,
-        title: stripUiMarkup(r.title),
-        reason: stripUiMarkup(r.reason),
-        citation: stripUiMarkup(r.citation),
-        venue: stripUiMarkup(r.venue),
-        link: stripUiMarkup(r.link),
-        source: r.source === "news" ? "news" : "scholar",
-      })).filter((r: any) => r.title && r.link).slice(0, 8) : [];
+      payload.results = Array.isArray(payload.results) ? payload.results.map((r: any) => {
+        const link = normalizeUrl(stripUiMarkup(r.link));
+        const host = hostnameOf(link);
+        // Find matching candidate from tool results to enrich with favicon/venue when LLM dropped fields
+        const match = allResults.find((c) => (c.link || "").toLowerCase() === (r.link || "").toLowerCase()) ||
+          allResults.find((c) => (c.title || "").toLowerCase() === (r.title || "").toLowerCase());
+        return {
+          ...r,
+          title: stripUiMarkup(r.title),
+          reason: stripUiMarkup(r.reason),
+          citation: stripUiMarkup(r.citation),
+          venue: stripUiMarkup(r.venue) || match?.venue || host,
+          link,
+          favicon: match?.favicon ?? (host ? `https://www.google.com/s2/favicons?domain=${host}&sz=64` : null),
+          source: r.source === "news" ? "news" : "scholar",
+        };
+      }).filter((r: any) => r.title && r.link).slice(0, 8) : [];
 
       if (!payload.results.length && allResults.length) payload = deterministicPayload(prompt, allResults, payload.intro);
 
