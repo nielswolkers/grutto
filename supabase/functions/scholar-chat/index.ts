@@ -80,11 +80,26 @@ async function openAlexSearch(args: {
 }
 
 // ============== Firecrawl news ==============
+function normalizeUrl(u?: string | null): string {
+  if (!u) return "";
+  const s = String(u).trim();
+  if (!s) return "";
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.startsWith("//")) return `https:${s}`;
+  if (/^[\w.-]+\.[a-z]{2,}(\/|$)/i.test(s)) return `https://${s}`;
+  return s;
+}
+
+function hostnameOf(url?: string) {
+  if (!url) return null;
+  try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return null; }
+}
+
 async function firecrawlNewsSearch(args: {
   query: string;
-  from_date?: string;   // YYYY-MM-DD
-  to_date?: string;     // YYYY-MM-DD
-  source_site?: string; // e.g. nrc.nl
+  from_date?: string;
+  to_date?: string;
+  source_site?: string;
   max?: number;
   tbs?: "qdr:d" | "qdr:w" | "qdr:m" | "qdr:y";
 }) {
@@ -95,7 +110,7 @@ async function firecrawlNewsSearch(args: {
   if (args.to_date) parts.push(`before:${args.to_date}`);
   const body: Record<string, any> = {
     query: parts.join(" "),
-    limit: Math.min(args.max ?? 8, 15),
+    limit: Math.min(args.max ?? 10, 20),
     sources: ["news"],
   };
   if (args.tbs) body.tbs = args.tbs;
@@ -118,30 +133,32 @@ async function firecrawlNewsSearch(args: {
     }
     const json = await res.json();
     const items: any[] = json?.data?.news ?? json?.data?.web ?? json?.data ?? [];
-    const results = items.map((it: any) => ({
-      source: "news" as const,
-      title: it.title ?? it.url ?? "Untitled",
-      authors: it.author ? [String(it.author)] : [],
-      year: it.publishedDate ? new Date(it.publishedDate).getUTCFullYear() : null,
-      published_date: it.publishedDate ?? null,
-      venue: it.snippet?.match?.(/^([^|–-]+)/)?.[1]?.trim() ?? it.source ?? hostnameOf(it.url),
-      cited_by_count: 0,
-      open_access: true,
-      link: it.url,
-      language: null,
-      abstract: it.description ?? it.snippet ?? "",
-    }));
+    const results = items.map((it: any) => {
+      const rawUrl = it.url ?? it.link ?? it.sourceURL ?? "";
+      const url = normalizeUrl(rawUrl);
+      const host = hostnameOf(url);
+      const dateStr = it.date ?? it.publishedDate ?? it.published_at ?? null;
+      return {
+        source: "news" as const,
+        title: it.title ?? url ?? "Untitled",
+        authors: it.author ? [String(it.author)] : [],
+        year: dateStr ? new Date(dateStr).getUTCFullYear() : null,
+        published_date: dateStr,
+        venue: it.source ?? host,
+        cited_by_count: 0,
+        open_access: true,
+        link: url,
+        favicon: host ? `https://www.google.com/s2/favicons?domain=${host}&sz=64` : null,
+        language: null,
+        abstract: it.description ?? it.snippet ?? it.markdown ?? "",
+      };
+    }).filter((r: any) => r.link);
     return { total: results.length, results };
   } catch (e) {
     return { error: (e as Error).message, results: [] };
   } finally {
     clearTimeout(t);
   }
-}
-
-function hostnameOf(url?: string) {
-  if (!url) return null;
-  try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return null; }
 }
 
 function stripUiMarkup(value: any) {
