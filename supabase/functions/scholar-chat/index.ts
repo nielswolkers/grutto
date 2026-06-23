@@ -266,22 +266,29 @@ function extractJsonObject(raw: string) {
 }
 
 function deterministicPayload(prompt: string, candidates: any[], rawIntro?: string) {
+  const todayIso = new Date().toISOString().slice(0, 10);
   const results = candidates.slice(0, 5).map((r) => {
     const link = normalizeUrl(stripUiMarkup(r.link) || "");
     const host = hostnameOf(link);
+    const title = stripUiMarkup(r.title) || "Bron zonder titel";
+    const authors = Array.isArray(r.authors) ? r.authors.slice(0, 6).map(stripUiMarkup).filter(Boolean) : [];
+    const venue = stripUiMarkup(r.venue) || host || null;
+    const source = r.source === "news" ? "news" : "scholar";
+    const published_date = toIsoDate(r.published_date) ?? (source === "news" ? todayIso : null);
+    const year = typeof r.year === "number" ? r.year : (published_date ? Number(published_date.slice(0, 4)) : null);
+    const citation = source === "news"
+      ? formatHarvardNews({ authors, isoDate: published_date, title, venue, url: link })
+      : formatHarvardScholar({ authors, year, title, venue, url: link });
     return {
-      title: stripUiMarkup(r.title) || "Bron zonder titel",
-      authors: Array.isArray(r.authors) ? r.authors.slice(0, 6).map(stripUiMarkup).filter(Boolean) : [],
-      year: typeof r.year === "number" ? r.year : null,
-      venue: stripUiMarkup(r.venue) || host || null,
+      title, authors, year, venue,
       cited_by_count: Number(r.cited_by_count || 0),
       open_access: Boolean(r.open_access),
       link,
       favicon: r.favicon ?? (host ? `https://www.google.com/s2/favicons?domain=${host}&sz=64` : null),
       reason: stripUiMarkup(r.abstract) || `Deze bron sluit aan op de zoekvraag: ${prompt}`,
-      citation: `${Array.isArray(r.authors) && r.authors.length ? `${r.authors.slice(0, 3).join(", ")} ` : ""}${r.year ? `(${r.year}). ` : ""}${r.title || "Bron zonder titel"}.${r.venue ? ` ${r.venue}.` : ""}`,
-      source: r.source === "news" ? "news" : "scholar",
-      published_date: r.published_date ?? null,
+      citation,
+      source,
+      published_date,
     };
   });
 
