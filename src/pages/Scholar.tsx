@@ -387,9 +387,12 @@ function ResultCard({ r, index }: { r: ResultItem; index: number }) {
           {r.venue && (
             <span className="text-xs text-muted-foreground truncate">{stripStars(r.venue)}</span>
           )}
-          {r.published_date && r.source === "news" && (
-            <span className="text-xs text-muted-foreground">· {new Date(r.published_date).toLocaleDateString("nl-NL")}</span>
-          )}
+          {r.published_date && r.source === "news" && (() => {
+            const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(r.published_date);
+            if (!m) return null;
+            const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+            return <span className="text-xs text-muted-foreground">· {d.toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" })}</span>;
+          })()}
         </div>
         <h3 className="font-semibold text-lg leading-snug">{stripStars(r.title)}</h3>
         <p className="text-sm text-muted-foreground mt-1">
