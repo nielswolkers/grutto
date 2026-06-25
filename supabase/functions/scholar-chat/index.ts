@@ -606,15 +606,19 @@ Deno.serve(async (req) => {
         const match = allResults.find((c) => (c.link || "").toLowerCase() === link.toLowerCase()) ||
           allResults.find((c) => (c.title || "").toLowerCase() === String(r.title || "").toLowerCase());
         const source = r.source === "news" ? "news" : (match?.source ?? "scholar");
-        const published_date = toIsoDate(r.published_date) ?? match?.published_date ?? (source === "news" ? new Date().toISOString().slice(0, 10) : null);
+        // Never default to today; keep null if unknown.
+        const published_date = toIsoDate(r.published_date) ?? match?.published_date ?? null;
+        const updated_date = toIsoDate(r.updated_date) ?? match?.updated_date ?? null;
         const title = stripUiMarkup(r.title) || match?.title || "Bron zonder titel";
-        const venue = stripUiMarkup(r.venue) || match?.venue || host;
+        const venue = prettyVenue(stripUiMarkup(r.venue) || match?.venue || null, host);
         const authors = Array.isArray(r.authors) && r.authors.length ? r.authors.map(stripUiMarkup).filter(Boolean) : (match?.authors ?? []);
         const year = typeof r.year === "number" ? r.year : (published_date ? Number(published_date.slice(0, 4)) : (match?.year ?? null));
-        // Always overwrite the citation with a server-built Harvard string so we control the format.
+        const access = detectAccess(host, match?.open_access === true || r.open_access === true);
+        const kind = detectKind(link);
         const citation = source === "news"
           ? formatHarvardNews({ authors, isoDate: published_date, title, venue, url: link })
           : formatHarvardScholar({ authors, year, title, venue, url: link });
+        const weight = access === "open" ? 1.0 : access === "paywall" ? 0.7 : 0.85;
         return {
           ...r,
           title,
@@ -625,10 +629,18 @@ Deno.serve(async (req) => {
           reason: stripUiMarkup(r.reason),
           citation,
           published_date,
+          updated_date,
           favicon: match?.favicon ?? (host ? `https://www.google.com/s2/favicons?domain=${host}&sz=64` : null),
           source,
+          open_access: access === "open",
+          access,
+          kind,
+          _weight: weight,
         };
-      }).filter((r: any) => r.title && r.link).slice(0, 8) : [];
+      }).filter((r: any) => r.title && r.link)
+        .sort((a: any, b: any) => b._weight - a._weight)
+        .slice(0, 8)
+        .map(({ _weight, ...rest }: any) => rest) : [];
 
       if (!payload.results.length && allResults.length) payload = deterministicPayload(prompt, allResults, payload.intro);
 
