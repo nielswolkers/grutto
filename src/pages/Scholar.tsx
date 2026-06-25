@@ -1,12 +1,73 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowRight, Copy, GraduationCap, Plus, Send, Trash2, Loader2, PanelLeft, X, Star } from "lucide-react";
+import { ArrowRight, Copy, GraduationCap, Plus, Send, Trash2, Loader2, PanelLeft, X, Star, Paperclip, Image as ImageIcon, FileText, Upload, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+
+// ============ Attachments (#15, #16) ============
+const IMAGE_MIMES = ["image/jpeg","image/jpg","image/png","image/webp","image/gif"];
+const TEXT_MIMES = ["text/plain","text/markdown","text/csv","application/csv"];
+const DOC_MIMES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // docx
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation", // pptx
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // xlsx
+];
+const TEXT_EXT = ["txt","md","csv"];
+const DOC_EXT = ["pdf","docx","pptx","xlsx"];
+const IMG_EXT = ["jpg","jpeg","png","webp","gif"];
+const MAX_FILE_MB = 20;
+
+interface Attachment {
+  id: string;
+  kind: "image" | "file";
+  name: string;
+  mime: string;
+  size: number;
+  dataUrl?: string;
+  text?: string;
+}
+
+function extOf(name: string) { return (name.split(".").pop() || "").toLowerCase(); }
+function isAccepted(file: File) {
+  const ext = extOf(file.name);
+  if (IMAGE_MIMES.includes(file.type) || IMG_EXT.includes(ext)) return "image" as const;
+  if (DOC_MIMES.includes(file.type) || DOC_EXT.includes(ext) || TEXT_MIMES.includes(file.type) || TEXT_EXT.includes(ext)) return "file" as const;
+  return null;
+}
+function fileToDataUrl(f: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(f);
+  });
+}
+function fileToText(f: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(r.error);
+    r.readAsText(f);
+  });
+}
+async function buildAttachment(file: File): Promise<Attachment | null> {
+  const kind = isAccepted(file);
+  if (!kind) { toast.error(`Niet ondersteund: ${file.name}`); return null; }
+  if (file.size > MAX_FILE_MB * 1024 * 1024) { toast.error(`${file.name} is te groot (max ${MAX_FILE_MB}MB)`); return null; }
+  const ext = extOf(file.name);
+  const dataUrl = await fileToDataUrl(file);
+  const att: Attachment = { id: crypto.randomUUID(), kind, name: file.name, mime: file.type || "", size: file.size, dataUrl };
+  if (TEXT_MIMES.includes(file.type) || TEXT_EXT.includes(ext)) {
+    try { att.text = await fileToText(file); } catch { /* noop */ }
+  }
+  return att;
+}
 
 interface Thread { id: string; title: string; updated_at: string; }
 interface ResultItem {
