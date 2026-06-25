@@ -1,12 +1,73 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowRight, Copy, GraduationCap, Plus, Send, Trash2, Loader2, PanelLeft, X, Star } from "lucide-react";
+import { ArrowRight, Copy, GraduationCap, Plus, Send, Trash2, Loader2, PanelLeft, X, Star, Paperclip, Image as ImageIcon, FileText, Upload, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+
+// ============ Attachments (#15, #16) ============
+const IMAGE_MIMES = ["image/jpeg","image/jpg","image/png","image/webp","image/gif"];
+const TEXT_MIMES = ["text/plain","text/markdown","text/csv","application/csv"];
+const DOC_MIMES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // docx
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation", // pptx
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // xlsx
+];
+const TEXT_EXT = ["txt","md","csv"];
+const DOC_EXT = ["pdf","docx","pptx","xlsx"];
+const IMG_EXT = ["jpg","jpeg","png","webp","gif"];
+const MAX_FILE_MB = 20;
+
+interface Attachment {
+  id: string;
+  kind: "image" | "file";
+  name: string;
+  mime: string;
+  size: number;
+  dataUrl?: string;
+  text?: string;
+}
+
+function extOf(name: string) { return (name.split(".").pop() || "").toLowerCase(); }
+function isAccepted(file: File) {
+  const ext = extOf(file.name);
+  if (IMAGE_MIMES.includes(file.type) || IMG_EXT.includes(ext)) return "image" as const;
+  if (DOC_MIMES.includes(file.type) || DOC_EXT.includes(ext) || TEXT_MIMES.includes(file.type) || TEXT_EXT.includes(ext)) return "file" as const;
+  return null;
+}
+function fileToDataUrl(f: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(f);
+  });
+}
+function fileToText(f: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(r.error);
+    r.readAsText(f);
+  });
+}
+async function buildAttachment(file: File): Promise<Attachment | null> {
+  const kind = isAccepted(file);
+  if (!kind) { toast.error(`Niet ondersteund: ${file.name}`); return null; }
+  if (file.size > MAX_FILE_MB * 1024 * 1024) { toast.error(`${file.name} is te groot (max ${MAX_FILE_MB}MB)`); return null; }
+  const ext = extOf(file.name);
+  const dataUrl = await fileToDataUrl(file);
+  const att: Attachment = { id: crypto.randomUUID(), kind, name: file.name, mime: file.type || "", size: file.size, dataUrl };
+  if (TEXT_MIMES.includes(file.type) || TEXT_EXT.includes(ext)) {
+    try { att.text = await fileToText(file); } catch { /* noop */ }
+  }
+  return att;
+}
 
 interface Thread { id: string; title: string; updated_at: string; }
 interface ResultItem {
@@ -26,11 +87,13 @@ interface ResultItem {
   access?: "open" | "paywall" | "unknown";
   kind?: "press_release" | "blog" | null;
 }
+interface StudySetRef { id: string; title: string; emoji?: string; action: "created" | "updated"; }
 interface AssistantPayload {
   intro?: string;
   results?: ResultItem[];
   comparison?: string;
   followUps?: string[];
+  study_sets?: StudySetRef[];
 }
 interface Message {
   id: string;
@@ -59,9 +122,9 @@ function stripStars(text: string) {
 }
 
 function safePayloadFromContent(content: string, payload?: AssistantPayload): AssistantPayload | undefined {
-  if (payload?.results?.length) return payload;
+  if (payload?.results?.length || payload?.study_sets?.length) return payload;
   const cleaned = stripStars(content || "");
-  if (!cleaned.includes('"results"')) return payload;
+  if (!cleaned.includes('"results"') && !cleaned.includes('"study_sets"')) return payload;
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
   if (start < 0 || end <= start) return payload;
@@ -72,6 +135,7 @@ function safePayloadFromContent(content: string, payload?: AssistantPayload): As
       results: Array.isArray(parsed.results) ? parsed.results : [],
       comparison: stripStars(parsed.comparison || ""),
       followUps: Array.isArray(parsed.followUps) ? parsed.followUps.map(stripStars) : [],
+      study_sets: Array.isArray(parsed.study_sets) ? parsed.study_sets : [],
     };
   } catch {
     return payload;
@@ -97,6 +161,28 @@ export default function Scholar() {
   const [starred, setStarred] = useState<StarredRow[]>([]);
   const starredLinks = useMemo(() => new Set(starred.map((s) => s.link)), [starred]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+  const dragCounter = useRef(0);
+
+  const addFiles = useCallback(async (files: FileList | File[]) => {
+    const arr = Array.from(files);
+    const built = await Promise.all(arr.map(buildAttachment));
+    const ok = built.filter(Boolean) as Attachment[];
+    if (ok.length) setAttachments((p) => [...p, ...ok]);
+  }, []);
+
+  const removeAttachment = (id: string) => setAttachments((p) => p.filter((a) => a.id !== id));
+
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      if (!e.clipboardData?.files?.length) return;
+      addFiles(e.clipboardData.files);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [addFiles]);
 
   useEffect(() => { if (user) { loadThreads(); loadStarred(); } }, [user]);
   useEffect(() => { if (activeId) loadMessages(activeId); else setMessages([]); }, [activeId]);
@@ -173,27 +259,39 @@ export default function Scholar() {
 
   async function send(text: string) {
     const trimmed = text.trim();
-    if (!trimmed || sending) return;
+    if ((!trimmed && attachments.length === 0) || sending) return;
     let threadId = activeId;
     if (!threadId) threadId = await newThread();
     if (!threadId) return;
 
     setSending(true);
     setInput("");
-    const userMsg: Message = { id: crypto.randomUUID(), role: "user", content: trimmed };
+    const sentAttachments = attachments;
+    setAttachments([]);
+    const attachmentSummary = sentAttachments.length
+      ? `\n\n[Bijlagen: ${sentAttachments.map((a) => a.name).join(", ")}]`
+      : "";
+    const visibleContent = trimmed || (sentAttachments.length ? `(${sentAttachments.length} bijlage${sentAttachments.length > 1 ? "n" : ""})` : "");
+    const userMsg: Message = { id: crypto.randomUUID(), role: "user", content: visibleContent };
     setMessages((p) => [...p, userMsg]);
-    await supabase.from("scholar_messages").insert({ thread_id: threadId, role: "user", parts: { text: trimmed } });
+    await supabase.from("scholar_messages").insert({ thread_id: threadId, role: "user", parts: { text: visibleContent } });
 
     if (messages.length === 0) {
-      const title = trimmed.slice(0, 60);
+      const title = (trimmed || sentAttachments[0]?.name || "Nieuw gesprek").slice(0, 60);
       await supabase.from("scholar_threads").update({ title }).eq("id", threadId);
       setThreads((p) => p.map((t) => (t.id === threadId ? { ...t, title } : t)));
     }
 
     try {
-      const history = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content }));
+      const history = [...messages, { ...userMsg, content: (trimmed || "Analyseer de bijlagen.") + attachmentSummary }].map((m) => ({ role: m.role, content: m.content }));
+      // Strip dataUrl from text-only attachments to reduce payload (keep dataUrl for image/pdf)
+      const payloadAttachments = sentAttachments.map((a) => ({
+        kind: a.kind, name: a.name, mime: a.mime,
+        dataUrl: a.text ? undefined : a.dataUrl,
+        text: a.text,
+      }));
       const { data, error } = await supabase.functions.invoke("scholar-chat", {
-        body: { messages: history },
+        body: { messages: history, attachments: payloadAttachments },
       });
       if (error) throw error;
       const payload: AssistantPayload = {
@@ -201,6 +299,7 @@ export default function Scholar() {
         results: data?.results || [],
         comparison: stripStars(data?.comparison || ""),
         followUps: (data?.followUps || []).map(stripStars),
+        study_sets: Array.isArray(data?.study_sets) ? data.study_sets : [],
       };
       const assistant: Message = {
         id: crypto.randomUUID(),
@@ -230,7 +329,42 @@ export default function Scholar() {
   ], []);
 
   return (
-    <div className="flex h-[calc(100vh-64px)] relative overflow-hidden">
+    <div
+      className="flex h-[calc(100vh-64px)] relative overflow-hidden"
+      onDragEnter={(e) => {
+        if (!e.dataTransfer?.types?.includes("Files")) return;
+        e.preventDefault();
+        dragCounter.current += 1;
+        setDragOver(true);
+      }}
+      onDragLeave={() => {
+        dragCounter.current -= 1;
+        if (dragCounter.current <= 0) { dragCounter.current = 0; setDragOver(false); }
+      }}
+      onDragOver={(e) => { if (e.dataTransfer?.types?.includes("Files")) e.preventDefault(); }}
+      onDrop={(e) => {
+        if (!e.dataTransfer?.files?.length) return;
+        e.preventDefault();
+        dragCounter.current = 0;
+        setDragOver(false);
+        addFiles(e.dataTransfer.files);
+      }}
+    >
+      <AnimatePresence>
+        {dragOver && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="absolute inset-0 z-40 bg-primary/10 backdrop-blur-sm border-4 border-dashed border-primary rounded-xl flex items-center justify-center pointer-events-none"
+          >
+            <div className="bg-background/90 rounded-2xl px-8 py-6 shadow-xl flex flex-col items-center gap-3">
+              <Upload className="w-10 h-10 text-primary" />
+              <p className="text-xl font-semibold">Laat los om te uploaden</p>
+              <p className="text-sm text-muted-foreground">Afbeeldingen of bestanden — meerdere tegelijk toegestaan</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Floating sidebar toggle */}
       <button
         onClick={() => setSidebarOpen((s) => !s)}
@@ -359,7 +493,45 @@ export default function Scholar() {
         {/* Floating composer — no chin border, just a transparent floating bar */}
         <div className="absolute bottom-4 left-0 right-0 px-4 pointer-events-none">
           <div className="max-w-2xl mx-auto pointer-events-auto">
+            {attachments.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2 rounded-2xl border bg-background/70 backdrop-blur-md p-2 shadow">
+                {attachments.map((a) => (
+                  <div key={a.id} className="flex items-center gap-2 rounded-lg bg-muted px-2 py-1 text-sm max-w-[220px]">
+                    {a.kind === "image" && a.dataUrl ? (
+                      <img src={a.dataUrl} alt={a.name} className="w-8 h-8 rounded object-cover shrink-0" />
+                    ) : a.kind === "image" ? (
+                      <ImageIcon className="w-4 h-4 shrink-0" />
+                    ) : (
+                      <FileText className="w-4 h-4 shrink-0" />
+                    )}
+                    <span className="truncate">{a.name}</span>
+                    <button onClick={() => removeAttachment(a.id)} className="text-muted-foreground hover:text-destructive shrink-0">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex items-end gap-2 rounded-2xl border bg-background/70 backdrop-blur-md p-2 shadow-lg">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.docx,.pptx,.xlsx,.csv,.txt,.md,image/*,application/pdf,text/*"
+                className="hidden"
+                onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.currentTarget.value = ""; }}
+              />
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="rounded-full shrink-0"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Bestand toevoegen"
+                title="Afbeelding of bestand toevoegen"
+              >
+                <Paperclip className="w-4 h-4" />
+              </Button>
               <Textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -367,12 +539,13 @@ export default function Scholar() {
                 placeholder="Vraag Grutto AI naar studies, nieuws of bronnen…"
                 className="resize-none border-0 focus-visible:ring-0 min-h-[44px] max-h-40 text-base bg-transparent"
               />
-              <Button onClick={() => send(input)} disabled={!input.trim() || sending} size="icon" className="rounded-full shrink-0">
+              <Button onClick={() => send(input)} disabled={(!input.trim() && attachments.length === 0) || sending} size="icon" className="rounded-full shrink-0">
                 <Send className="w-4 h-4" />
               </Button>
             </div>
           </div>
         </div>
+
       </div>
     </div>
   );
@@ -401,6 +574,36 @@ function AssistantMessage({ message, onFollowUp, starredLinks, onToggleStar }: {
           />
         ))}
       </div>
+
+      {p?.study_sets && p.study_sets.length > 0 && (
+        <div className="space-y-2 pt-2">
+          {p.study_sets.map((s, i) => (
+            <motion.div
+              key={s.id}
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.08 + 0.05 }}
+            >
+              <Link
+                to={`/studieset/${s.id}`}
+                className="flex items-center gap-3 rounded-2xl border bg-card p-4 hover:bg-muted/40 transition-colors shadow-sm"
+              >
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-2xl shrink-0">
+                  {s.emoji || "📚"}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">
+                    Studieset {s.action === "updated" ? "bijgewerkt" : "aangemaakt"}
+                  </div>
+                  <div className="font-semibold truncate">{s.title}</div>
+                </div>
+                <BookOpen className="w-5 h-5 text-muted-foreground shrink-0" />
+                <ArrowRight className="w-5 h-5 shrink-0" />
+              </Link>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
 
       {p?.comparison && (
         <motion.p
