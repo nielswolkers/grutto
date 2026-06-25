@@ -161,6 +161,28 @@ export default function Scholar() {
   const [starred, setStarred] = useState<StarredRow[]>([]);
   const starredLinks = useMemo(() => new Set(starred.map((s) => s.link)), [starred]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+  const dragCounter = useRef(0);
+
+  const addFiles = useCallback(async (files: FileList | File[]) => {
+    const arr = Array.from(files);
+    const built = await Promise.all(arr.map(buildAttachment));
+    const ok = built.filter(Boolean) as Attachment[];
+    if (ok.length) setAttachments((p) => [...p, ...ok]);
+  }, []);
+
+  const removeAttachment = (id: string) => setAttachments((p) => p.filter((a) => a.id !== id));
+
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      if (!e.clipboardData?.files?.length) return;
+      addFiles(e.clipboardData.files);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [addFiles]);
 
   useEffect(() => { if (user) { loadThreads(); loadStarred(); } }, [user]);
   useEffect(() => { if (activeId) loadMessages(activeId); else setMessages([]); }, [activeId]);
