@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowRight, Copy, GraduationCap, Plus, Send, Trash2, Loader2, PanelLeft, X } from "lucide-react";
+import { ArrowRight, Copy, GraduationCap, Plus, Send, Trash2, Loader2, PanelLeft, X, Star } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -21,7 +21,10 @@ interface ResultItem {
   citation: string;
   source?: "scholar" | "news";
   published_date?: string | null;
+  updated_date?: string | null;
   favicon?: string | null;
+  access?: "open" | "paywall" | "unknown";
+  kind?: "press_release" | "blog" | null;
 }
 interface AssistantPayload {
   intro?: string;
@@ -34,6 +37,14 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   payload?: AssistantPayload;
+}
+interface StarredRow {
+  id: string;
+  title: string;
+  link: string;
+  venue: string | null;
+  favicon: string | null;
+  source: string;
 }
 
 function stripStars(text: string) {
@@ -67,6 +78,14 @@ function safePayloadFromContent(content: string, payload?: AssistantPayload): As
   }
 }
 
+function formatDateNl(iso?: string | null) {
+  if (!iso) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return null;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return d.toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" });
+}
+
 export default function Scholar() {
   const { user } = useAuth();
   const [threads, setThreads] = useState<Thread[]>([]);
@@ -75,9 +94,11 @@ export default function Scholar() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [starred, setStarred] = useState<StarredRow[]>([]);
+  const starredLinks = useMemo(() => new Set(starred.map((s) => s.link)), [starred]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { if (user) loadThreads(); }, [user]);
+  useEffect(() => { if (user) { loadThreads(); loadStarred(); } }, [user]);
   useEffect(() => { if (activeId) loadMessages(activeId); else setMessages([]); }, [activeId]);
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); }, [messages, sending]);
 
@@ -88,17 +109,38 @@ export default function Scholar() {
     setThreads(data || []);
   }
 
-  async function loadMessages(threadId: string) {
+  async function loadStarred() {
     const { data } = await supabase
-      .from("scholar_messages").select("id, role, parts")
-      .eq("thread_id", threadId).order("created_at");
-    setMessages((data || []).map((m: any) => ({
-      id: m.id,
-      role: m.role,
-      content: typeof m.parts?.text === "string" ? stripStars(m.parts.text) : "",
-      payload: safePayloadFromContent(typeof m.parts?.text === "string" ? m.parts.text : "", m.parts?.payload),
-    })));
+      .from("starred_sources").select("id, title, link, venue, favicon, source")
+      .order("created_at", { ascending: false });
+    setStarred((data as StarredRow[]) || []);
   }
+
+  const toggleStar = useCallback(async (r: ResultItem) => {
+    if (!user) { toast.error("Log in om bronnen te bewaren"); return; }
+    if (starredLinks.has(r.link)) {
+      const row = starred.find((s) => s.link === r.link);
+      if (!row) return;
+      await supabase.from("starred_sources").delete().eq("id", row.id);
+      setStarred((p) => p.filter((s) => s.id !== row.id));
+      toast.success("Verwijderd uit Starred Sources");
+    } else {
+      const { data, error } = await supabase.from("starred_sources").insert({
+        user_id: user.id,
+        title: r.title,
+        link: r.link,
+        venue: r.venue,
+        authors: r.authors,
+        published_date: r.published_date ?? null,
+        source: r.source ?? "scholar",
+        citation: r.citation,
+        favicon: r.favicon ?? null,
+      }).select("id, title, link, venue, favicon, source").single();
+      if (error) { toast.error("Kon bron niet bewaren"); return; }
+      setStarred((p) => [data as StarredRow, ...p]);
+      toast.success("Toegevoegd aan Starred Sources");
+    }
+  }, [user, starred, starredLinks]);
 
   async function newThread(): Promise<string | null> {
     if (!user) return null;
@@ -115,6 +157,18 @@ export default function Scholar() {
     await supabase.from("scholar_threads").delete().eq("id", id);
     setThreads((p) => p.filter((t) => t.id !== id));
     if (activeId === id) { setActiveId(null); setMessages([]); }
+  }
+
+  async function loadMessages(threadId: string) {
+    const { data } = await supabase
+      .from("scholar_messages").select("id, role, parts")
+      .eq("thread_id", threadId).order("created_at");
+    setMessages((data || []).map((m: any) => ({
+      id: m.id,
+      role: m.role,
+      content: typeof m.parts?.text === "string" ? stripStars(m.parts.text) : "",
+      payload: safePayloadFromContent(typeof m.parts?.text === "string" ? m.parts.text : "", m.parts?.payload),
+    })));
   }
 
   async function send(text: string) {
@@ -186,7 +240,7 @@ export default function Scholar() {
         <PanelLeft className="w-5 h-5" />
       </button>
 
-      {/* Slide-over history sidebar — sits below main menu (z-10), not over it */}
+      {/* Slide-over history sidebar — flush against main menu, no spring overshoot */}
       <AnimatePresence>
         {sidebarOpen && (
           <>
@@ -197,11 +251,11 @@ export default function Scholar() {
             />
             <motion.aside
               className="absolute top-0 left-0 h-full w-80 bg-background border-r z-10 flex flex-col"
-              initial={{ x: -320 }} animate={{ x: 0 }} exit={{ x: -320 }}
-              transition={{ type: "spring", damping: 25, stiffness: 220 }}
+              initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }}
+              transition={{ type: "tween", duration: 0.26, ease: [0.22, 0.61, 0.36, 1] }}
             >
               <div className="p-4 border-b flex items-center justify-between pl-16">
-                <span className="font-bold text-xl">Geschiedenis</span>
+                <span className="font-bold text-2xl">Geschiedenis</span>
                 <button onClick={() => setSidebarOpen(false)} className="text-muted-foreground hover:text-foreground">
                   <X className="w-5 h-5" />
                 </button>
@@ -225,6 +279,42 @@ export default function Scholar() {
                 ))}
                 {threads.length === 0 && <p className="text-sm text-muted-foreground px-2 py-3">Nog geen gesprekken.</p>}
               </div>
+
+              {/* Starred Sources section */}
+              <div className="border-t">
+                <div className="px-4 pt-3 pb-2 flex items-center gap-2">
+                  <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
+                  <span className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">Starred Sources</span>
+                </div>
+                <div className="max-h-64 overflow-y-auto px-2 pb-3 space-y-1">
+                  {starred.length === 0 && (
+                    <p className="text-sm text-muted-foreground px-2 py-2">Klik op de ster bij een bron om hem te bewaren.</p>
+                  )}
+                  {starred.map((s) => (
+                    <a key={s.id} href={s.link} target="_blank" rel="noopener noreferrer"
+                       className="group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/60">
+                      {s.favicon
+                        ? <img src={s.favicon} alt="" className="w-5 h-5 rounded-full border bg-white object-contain shrink-0" />
+                        : <div className="w-5 h-5 rounded-full bg-muted shrink-0" />}
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm truncate">{s.title}</div>
+                        {s.venue && <div className="text-xs text-muted-foreground truncate">{s.venue}</div>}
+                      </div>
+                      <button
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          await supabase.from("starred_sources").delete().eq("id", s.id);
+                          setStarred((p) => p.filter((x) => x.id !== s.id));
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive shrink-0"
+                        aria-label="Verwijder uit favorieten"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </a>
+                  ))}
+                </div>
+              </div>
             </motion.aside>
           </>
         )}
@@ -233,7 +323,7 @@ export default function Scholar() {
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0 relative">
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
-          <div className="max-w-5xl mx-auto px-6 py-8 pt-16 pb-40 space-y-8">
+          <div className="max-w-5xl mx-auto px-6 py-8 pt-16 pb-32 space-y-8">
             {messages.length === 0 ? (
               <div className="text-center py-12">
                 <GraduationCap className="w-14 h-14 mx-auto text-muted-foreground mb-4" />
@@ -253,31 +343,33 @@ export default function Scholar() {
                   <div className="max-w-[85%] rounded-lg px-4 py-3 text-base bg-secondary">{m.content}</div>
                 </div>
               ) : (
-                <AssistantMessage key={m.id} message={m} onFollowUp={send} />
+                <AssistantMessage
+                  key={m.id}
+                  message={m}
+                  onFollowUp={send}
+                  starredLinks={starredLinks}
+                  onToggleStar={toggleStar}
+                />
               ))
             )}
             {sending && <div className="flex items-center gap-2 text-base text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Onderzoeken… (synoniemen, meerdere rondes)</div>}
           </div>
         </div>
 
-        {/* Floating composer with blurred backdrop */}
-        <div className="absolute bottom-0 left-0 right-0 pointer-events-none">
-          <div className="h-32 bg-gradient-to-t from-background/90 via-background/60 to-transparent backdrop-blur-md" />
-          <div className="absolute bottom-4 left-0 right-0 px-4 pointer-events-none">
-            <div className="max-w-2xl mx-auto pointer-events-auto">
-              <div className="flex items-end gap-2 rounded-2xl border bg-background/95 backdrop-blur p-2 shadow-lg">
-                <Textarea
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
-                  placeholder="Vraag Grutto AI naar studies, nieuws of bronnen…"
-                  className="resize-none border-0 focus-visible:ring-0 min-h-[44px] max-h-40 text-base bg-transparent"
-                />
-                <Button onClick={() => send(input)} disabled={!input.trim() || sending} size="icon" className="rounded-full shrink-0">
-                  <Send className="w-4 h-4" />
-                </Button>
-              </div>
-              <p className="text-center text-xs text-muted-foreground mt-2">Bronnen uit OpenAlex (studies) en nieuwsartikelen via web-search. Verifieer altijd citaties.</p>
+        {/* Floating composer — no chin border, just a transparent floating bar */}
+        <div className="absolute bottom-4 left-0 right-0 px-4 pointer-events-none">
+          <div className="max-w-2xl mx-auto pointer-events-auto">
+            <div className="flex items-end gap-2 rounded-2xl border bg-background/70 backdrop-blur-md p-2 shadow-lg">
+              <Textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
+                placeholder="Vraag Grutto AI naar studies, nieuws of bronnen…"
+                className="resize-none border-0 focus-visible:ring-0 min-h-[44px] max-h-40 text-base bg-transparent"
+              />
+              <Button onClick={() => send(input)} disabled={!input.trim() || sending} size="icon" className="rounded-full shrink-0">
+                <Send className="w-4 h-4" />
+              </Button>
             </div>
           </div>
         </div>
@@ -286,7 +378,10 @@ export default function Scholar() {
   );
 }
 
-function AssistantMessage({ message, onFollowUp }: { message: Message; onFollowUp: (s: string) => void }) {
+function AssistantMessage({ message, onFollowUp, starredLinks, onToggleStar }: {
+  message: Message; onFollowUp: (s: string) => void;
+  starredLinks: Set<string>; onToggleStar: (r: ResultItem) => void;
+}) {
   const p = safePayloadFromContent(message.content, message.payload);
   const results = p?.results || [];
   return (
@@ -297,7 +392,13 @@ function AssistantMessage({ message, onFollowUp }: { message: Message; onFollowU
 
       <div className="space-y-3">
         {results.map((r, i) => (
-          <ResultCard key={i} r={r} index={i} />
+          <ResultCard
+            key={i}
+            r={r}
+            index={i}
+            isStarred={starredLinks.has(ensureProtocol(stripStars(r.link || "").trim()))}
+            onToggleStar={onToggleStar}
+          />
         ))}
       </div>
 
@@ -348,16 +449,35 @@ function hostOf(u: string) {
   try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return null; }
 }
 
-function ResultCard({ r, index }: { r: ResultItem; index: number }) {
+function ResultCard({ r, index, isStarred, onToggleStar }: {
+  r: ResultItem; index: number; isStarred: boolean; onToggleStar: (r: ResultItem) => void;
+}) {
   const link = ensureProtocol(stripStars(r.link || "").trim());
   const host = hostOf(link);
   const favicon = r.favicon || (host ? `https://www.google.com/s2/favicons?domain=${host}&sz=64` : null);
   const citation = stripStars(r.citation || `${(r.authors || []).join(", ")} (${r.year ?? "n.d."}). ${r.title}. ${r.venue ?? ""}`.trim());
+  const dateLabel = formatDateNl(r.published_date) || (r.year ? String(r.year) : null);
+  const updatedLabel = r.updated_date ? formatDateNl(r.updated_date) : null;
 
   const copy = async () => {
     try { await navigator.clipboard.writeText(citation); toast.success("Citatie gekopieerd"); }
     catch { toast.error("Kopiëren mislukt"); }
   };
+
+  // Access label
+  const access = r.access ?? (r.open_access ? "open" : "unknown");
+  const accessChip = access === "open"
+    ? <span className="text-[10px] uppercase tracking-wide font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Open Access</span>
+    : access === "paywall"
+      ? <span className="text-[10px] uppercase tracking-wide font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-800">Paywall</span>
+      : null;
+
+  // Kind label
+  const kindChip = r.kind === "press_release"
+    ? <span className="text-[10px] uppercase tracking-wide font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">Persbericht</span>
+    : r.kind === "blog"
+      ? <span className="text-[10px] uppercase tracking-wide font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">Officiële blog</span>
+      : null;
 
   return (
     <motion.div
@@ -367,7 +487,8 @@ function ResultCard({ r, index }: { r: ResultItem; index: number }) {
       className="flex gap-3 items-stretch"
     >
       <div className="flex-1 rounded-2xl border bg-card p-5 shadow-sm">
-        <div className="flex items-center gap-2 mb-2">
+        {/* Top row: publisher icon + name + date */}
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
           {favicon ? (
             <img
               src={favicon}
@@ -378,33 +499,36 @@ function ResultCard({ r, index }: { r: ResultItem; index: number }) {
           ) : (
             <div className="w-7 h-7 rounded-full bg-muted shrink-0" />
           )}
+          <span className="font-semibold text-sm">{stripStars(r.venue || host || "Bron")}</span>
+          {dateLabel && <span className="text-xs text-muted-foreground">· {dateLabel}</span>}
+          {updatedLabel && updatedLabel !== dateLabel && (
+            <span className="text-xs text-muted-foreground">· bijgewerkt {updatedLabel}</span>
+          )}
           <span className={cn(
             "text-[10px] uppercase tracking-wide font-semibold px-2 py-0.5 rounded-full",
             r.source === "news" ? "bg-amber-100 text-amber-900" : "bg-indigo-100 text-indigo-900",
           )}>
             {r.source === "news" ? "Nieuws" : "Studie"}
           </span>
-          {r.venue && (
-            <span className="text-xs text-muted-foreground truncate">{stripStars(r.venue)}</span>
-          )}
-          {r.published_date && r.source === "news" && (() => {
-            const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(r.published_date);
-            if (!m) return null;
-            const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
-            return <span className="text-xs text-muted-foreground">· {d.toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" })}</span>;
-          })()}
+          {accessChip}
+          {kindChip}
         </div>
+
         <h3 className="font-semibold text-lg leading-snug">{stripStars(r.title)}</h3>
-        <p className="text-sm text-muted-foreground mt-1">
-          {(r.authors || []).slice(0, 4).join(", ")}{r.authors && r.authors.length > 4 ? " e.a." : ""}
-          {r.year ? ` · ${r.year}` : ""}
-        </p>
-        <div className="flex flex-wrap gap-2 mt-2 text-sm text-muted-foreground">
-          {r.source !== "news" && <span>{r.cited_by_count.toLocaleString()} citaties</span>}
-          {r.open_access && r.source !== "news" && <span className="text-emerald-600">Open Access</span>}
-        </div>
+
+        {r.authors && r.authors.length > 0 && (
+          <p className="text-sm text-muted-foreground mt-1">
+            {r.authors.slice(0, 4).join(", ")}{r.authors.length > 4 ? " e.a." : ""}
+          </p>
+        )}
+
+        {r.source !== "news" && r.cited_by_count > 0 && (
+          <p className="text-sm text-muted-foreground mt-1">{r.cited_by_count.toLocaleString()} citaties</p>
+        )}
+
         {r.reason && <p className="text-base mt-3 leading-relaxed">{stripStars(r.reason)}</p>}
       </div>
+
       <div className="flex flex-col gap-2 shrink-0">
         <a
           href={link}
@@ -421,6 +545,18 @@ function ResultCard({ r, index }: { r: ResultItem; index: number }) {
           className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-muted text-foreground hover:bg-muted/70 transition-colors"
         >
           <Copy className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => onToggleStar({ ...r, link })}
+          aria-label={isStarred ? "Verwijder uit favorieten" : "Bewaar bron"}
+          className={cn(
+            "inline-flex items-center justify-center w-10 h-10 rounded-xl transition-colors",
+            isStarred
+              ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
+              : "bg-muted text-foreground hover:bg-muted/70",
+          )}
+        >
+          <Star className={cn("w-4 h-4", isStarred && "fill-amber-400")} />
         </button>
       </div>
     </motion.div>

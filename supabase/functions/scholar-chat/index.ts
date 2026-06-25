@@ -102,6 +102,74 @@ function hostnameOf(url?: string) {
   try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return null; }
 }
 
+// Map domain → human publisher / outlet name.
+const PUBLISHER_NAMES: Record<string, string> = {
+  "theguardian.com": "The Guardian",
+  "nytimes.com": "The New York Times",
+  "washingtonpost.com": "The Washington Post",
+  "wsj.com": "The Wall Street Journal",
+  "ft.com": "Financial Times",
+  "bbc.com": "BBC", "bbc.co.uk": "BBC",
+  "reuters.com": "Reuters",
+  "apnews.com": "Associated Press",
+  "bloomberg.com": "Bloomberg",
+  "economist.com": "The Economist",
+  "nrc.nl": "NRC", "volkskrant.nl": "de Volkskrant", "ad.nl": "AD",
+  "telegraaf.nl": "De Telegraaf", "trouw.nl": "Trouw", "parool.nl": "Het Parool",
+  "nu.nl": "Nu.nl", "nos.nl": "NOS", "rtlnieuws.nl": "RTL Nieuws",
+  "tweakers.net": "Tweakers", "fd.nl": "Het Financieele Dagblad",
+  "nature.com": "Nature", "science.org": "Science",
+  "sciencedirect.com": "Elsevier ScienceDirect", "elsevier.com": "Elsevier",
+  "springer.com": "Springer", "link.springer.com": "Springer",
+  "wiley.com": "Wiley", "onlinelibrary.wiley.com": "Wiley",
+  "mdpi.com": "MDPI", "frontiersin.org": "Frontiers",
+  "plos.org": "PLOS", "journals.plos.org": "PLOS",
+  "tandfonline.com": "Taylor & Francis", "sagepub.com": "SAGE",
+  "cambridge.org": "Cambridge University Press", "oup.com": "Oxford University Press",
+  "arxiv.org": "arXiv", "biorxiv.org": "bioRxiv", "ssrn.com": "SSRN",
+  "pubmed.ncbi.nlm.nih.gov": "PubMed", "ncbi.nlm.nih.gov": "NCBI",
+  "doi.org": "DOI",
+};
+
+const PAYWALL_HOSTS = new Set([
+  "nytimes.com","wsj.com","ft.com","economist.com","bloomberg.com",
+  "telegraaf.nl","nrc.nl","volkskrant.nl","parool.nl","trouw.nl","fd.nl",
+  "washingtonpost.com",
+]);
+const OPEN_HOSTS = new Set([
+  "theguardian.com","bbc.com","bbc.co.uk","reuters.com","apnews.com",
+  "nu.nl","nos.nl","rtlnieuws.nl","arxiv.org","biorxiv.org",
+  "plos.org","journals.plos.org","frontiersin.org","mdpi.com",
+]);
+
+function prettyVenue(rawVenue: string | null | undefined, host: string | null) {
+  if (host && PUBLISHER_NAMES[host]) return PUBLISHER_NAMES[host];
+  const v = (rawVenue || "").trim();
+  // strip domain-looking venues like "theguardian.com"
+  if (/^[\w-]+\.[a-z.]{2,}$/i.test(v) && host && PUBLISHER_NAMES[host]) return PUBLISHER_NAMES[host];
+  if (/^[\w-]+\.[a-z.]{2,}$/i.test(v)) {
+    // capitalise first part
+    return v.replace(/\.[a-z.]+$/i, "").replace(/(^|\s|-)\w/g, (m) => m.toUpperCase());
+  }
+  return v || (host ? (PUBLISHER_NAMES[host] ?? host) : null);
+}
+
+function detectAccess(host: string | null, openAccessHint?: boolean): "open" | "paywall" | "unknown" {
+  if (openAccessHint === true) return "open";
+  if (!host) return "unknown";
+  if (OPEN_HOSTS.has(host)) return "open";
+  if (PAYWALL_HOSTS.has(host)) return "paywall";
+  if (host.endsWith(".gov") || host.endsWith(".edu") || host.endsWith(".gov.uk") || host.endsWith(".overheid.nl")) return "open";
+  return "unknown";
+}
+
+function detectKind(link: string): "press_release" | "blog" | null {
+  const u = link.toLowerCase();
+  if (/\/(press|pers|persbericht|newsroom|press-release|press_release|media)\b/.test(u)) return "press_release";
+  if (/\/blog(s)?\b/.test(u) || /\.blog\./.test(u)) return "blog";
+  return null;
+}
+
 const MONTHS_NL = ["januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"];
 const MONTH_LOOKUP: Record<string, number> = {
   januari: 1, februari: 2, maart: 3, april: 4, mei: 5, juni: 6, juli: 7, augustus: 8, september: 9, oktober: 10, november: 11, december: 12,
@@ -208,21 +276,29 @@ async function firecrawlNewsSearch(args: {
       const rawUrl = it.url ?? it.link ?? it.sourceURL ?? "";
       const url = normalizeUrl(rawUrl);
       const host = hostnameOf(url);
-      const rawDate = it.date ?? it.publishedDate ?? it.published_at ?? it.published ?? it.metadata?.publishedTime ?? it.metadata?.date ?? null;
-      const iso = toIsoDate(rawDate) ?? todayIso;
-      const author = it.author ?? it.metadata?.author ?? null;
+      const rawDate = it.date ?? it.publishedDate ?? it.published_at ?? it.published ?? it.metadata?.publishedTime ?? it.metadata?.publishedDate ?? it.metadata?.article_published_time ?? it.metadata?.date ?? null;
+      const updatedRaw = it.metadata?.modifiedTime ?? it.metadata?.article_modified_time ?? it.updated ?? null;
+      // IMPORTANT: don't fall back to today — leave null if unknown.
+      const iso = toIsoDate(rawDate);
+      const updatedIso = toIsoDate(updatedRaw);
+      const author = it.author ?? it.metadata?.author ?? it.metadata?.byline ?? null;
       const authors = author ? [String(author)] : [];
-      const venue = it.source ?? it.metadata?.siteName ?? host ?? null;
+      const venue = prettyVenue(it.source ?? it.metadata?.siteName ?? null, host);
       const title = it.title ?? it.metadata?.title ?? url ?? "Untitled";
+      const access = detectAccess(host);
+      const kind = detectKind(url);
       return {
         source: "news" as const,
         title,
         authors,
         year: iso ? Number(iso.slice(0, 4)) : null,
         published_date: iso,
+        updated_date: updatedIso,
         venue,
         cited_by_count: 0,
-        open_access: true,
+        open_access: access === "open",
+        access,
+        kind,
         link: url,
         favicon: host ? `https://www.google.com/s2/favicons?domain=${host}&sz=64` : null,
         language: null,
@@ -266,31 +342,40 @@ function extractJsonObject(raw: string) {
 }
 
 function deterministicPayload(prompt: string, candidates: any[], rawIntro?: string) {
-  const todayIso = new Date().toISOString().slice(0, 10);
-  const results = candidates.slice(0, 5).map((r) => {
+  const mapped = candidates.map((r) => {
     const link = normalizeUrl(stripUiMarkup(r.link) || "");
     const host = hostnameOf(link);
     const title = stripUiMarkup(r.title) || "Bron zonder titel";
     const authors = Array.isArray(r.authors) ? r.authors.slice(0, 6).map(stripUiMarkup).filter(Boolean) : [];
-    const venue = stripUiMarkup(r.venue) || host || null;
+    const venue = prettyVenue(stripUiMarkup(r.venue) || null, host);
     const source = r.source === "news" ? "news" : "scholar";
-    const published_date = toIsoDate(r.published_date) ?? (source === "news" ? todayIso : null);
+    const published_date = toIsoDate(r.published_date); // never fall back to today
     const year = typeof r.year === "number" ? r.year : (published_date ? Number(published_date.slice(0, 4)) : null);
+    const access = detectAccess(host, r.open_access === true);
+    const kind = detectKind(link);
     const citation = source === "news"
       ? formatHarvardNews({ authors, isoDate: published_date, title, venue, url: link })
       : formatHarvardScholar({ authors, year, title, venue, url: link });
+    const weight = access === "open" ? 1.0 : access === "paywall" ? 0.7 : 0.85;
     return {
       title, authors, year, venue,
       cited_by_count: Number(r.cited_by_count || 0),
-      open_access: Boolean(r.open_access),
+      open_access: access === "open",
+      access,
+      kind,
       link,
       favicon: r.favicon ?? (host ? `https://www.google.com/s2/favicons?domain=${host}&sz=64` : null),
       reason: stripUiMarkup(r.abstract) || `Deze bron sluit aan op de zoekvraag: ${prompt}`,
       citation,
       source,
       published_date,
+      updated_date: toIsoDate(r.updated_date) ?? null,
+      _weight: weight,
     };
   });
+  // Prefer Open Access on ties.
+  mapped.sort((a, b) => b._weight - a._weight);
+  const results = mapped.slice(0, 5).map(({ _weight, ...rest }) => rest);
 
 
   return {
@@ -521,15 +606,19 @@ Deno.serve(async (req) => {
         const match = allResults.find((c) => (c.link || "").toLowerCase() === link.toLowerCase()) ||
           allResults.find((c) => (c.title || "").toLowerCase() === String(r.title || "").toLowerCase());
         const source = r.source === "news" ? "news" : (match?.source ?? "scholar");
-        const published_date = toIsoDate(r.published_date) ?? match?.published_date ?? (source === "news" ? new Date().toISOString().slice(0, 10) : null);
+        // Never default to today; keep null if unknown.
+        const published_date = toIsoDate(r.published_date) ?? match?.published_date ?? null;
+        const updated_date = toIsoDate(r.updated_date) ?? match?.updated_date ?? null;
         const title = stripUiMarkup(r.title) || match?.title || "Bron zonder titel";
-        const venue = stripUiMarkup(r.venue) || match?.venue || host;
+        const venue = prettyVenue(stripUiMarkup(r.venue) || match?.venue || null, host);
         const authors = Array.isArray(r.authors) && r.authors.length ? r.authors.map(stripUiMarkup).filter(Boolean) : (match?.authors ?? []);
         const year = typeof r.year === "number" ? r.year : (published_date ? Number(published_date.slice(0, 4)) : (match?.year ?? null));
-        // Always overwrite the citation with a server-built Harvard string so we control the format.
+        const access = detectAccess(host, match?.open_access === true || r.open_access === true);
+        const kind = detectKind(link);
         const citation = source === "news"
           ? formatHarvardNews({ authors, isoDate: published_date, title, venue, url: link })
           : formatHarvardScholar({ authors, year, title, venue, url: link });
+        const weight = access === "open" ? 1.0 : access === "paywall" ? 0.7 : 0.85;
         return {
           ...r,
           title,
@@ -540,10 +629,18 @@ Deno.serve(async (req) => {
           reason: stripUiMarkup(r.reason),
           citation,
           published_date,
+          updated_date,
           favicon: match?.favicon ?? (host ? `https://www.google.com/s2/favicons?domain=${host}&sz=64` : null),
           source,
+          open_access: access === "open",
+          access,
+          kind,
+          _weight: weight,
         };
-      }).filter((r: any) => r.title && r.link).slice(0, 8) : [];
+      }).filter((r: any) => r.title && r.link)
+        .sort((a: any, b: any) => b._weight - a._weight)
+        .slice(0, 8)
+        .map(({ _weight, ...rest }: any) => rest) : [];
 
       if (!payload.results.length && allResults.length) payload = deterministicPayload(prompt, allResults, payload.intro);
 
