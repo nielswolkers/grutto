@@ -329,7 +329,42 @@ export default function Scholar() {
   ], []);
 
   return (
-    <div className="flex h-[calc(100vh-64px)] relative overflow-hidden">
+    <div
+      className="flex h-[calc(100vh-64px)] relative overflow-hidden"
+      onDragEnter={(e) => {
+        if (!e.dataTransfer?.types?.includes("Files")) return;
+        e.preventDefault();
+        dragCounter.current += 1;
+        setDragOver(true);
+      }}
+      onDragLeave={() => {
+        dragCounter.current -= 1;
+        if (dragCounter.current <= 0) { dragCounter.current = 0; setDragOver(false); }
+      }}
+      onDragOver={(e) => { if (e.dataTransfer?.types?.includes("Files")) e.preventDefault(); }}
+      onDrop={(e) => {
+        if (!e.dataTransfer?.files?.length) return;
+        e.preventDefault();
+        dragCounter.current = 0;
+        setDragOver(false);
+        addFiles(e.dataTransfer.files);
+      }}
+    >
+      <AnimatePresence>
+        {dragOver && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="absolute inset-0 z-40 bg-primary/10 backdrop-blur-sm border-4 border-dashed border-primary rounded-xl flex items-center justify-center pointer-events-none"
+          >
+            <div className="bg-background/90 rounded-2xl px-8 py-6 shadow-xl flex flex-col items-center gap-3">
+              <Upload className="w-10 h-10 text-primary" />
+              <p className="text-xl font-semibold">Laat los om te uploaden</p>
+              <p className="text-sm text-muted-foreground">Afbeeldingen of bestanden — meerdere tegelijk toegestaan</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Floating sidebar toggle */}
       <button
         onClick={() => setSidebarOpen((s) => !s)}
