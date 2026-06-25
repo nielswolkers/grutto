@@ -276,21 +276,29 @@ async function firecrawlNewsSearch(args: {
       const rawUrl = it.url ?? it.link ?? it.sourceURL ?? "";
       const url = normalizeUrl(rawUrl);
       const host = hostnameOf(url);
-      const rawDate = it.date ?? it.publishedDate ?? it.published_at ?? it.published ?? it.metadata?.publishedTime ?? it.metadata?.date ?? null;
-      const iso = toIsoDate(rawDate) ?? todayIso;
-      const author = it.author ?? it.metadata?.author ?? null;
+      const rawDate = it.date ?? it.publishedDate ?? it.published_at ?? it.published ?? it.metadata?.publishedTime ?? it.metadata?.publishedDate ?? it.metadata?.article_published_time ?? it.metadata?.date ?? null;
+      const updatedRaw = it.metadata?.modifiedTime ?? it.metadata?.article_modified_time ?? it.updated ?? null;
+      // IMPORTANT: don't fall back to today — leave null if unknown.
+      const iso = toIsoDate(rawDate);
+      const updatedIso = toIsoDate(updatedRaw);
+      const author = it.author ?? it.metadata?.author ?? it.metadata?.byline ?? null;
       const authors = author ? [String(author)] : [];
-      const venue = it.source ?? it.metadata?.siteName ?? host ?? null;
+      const venue = prettyVenue(it.source ?? it.metadata?.siteName ?? null, host);
       const title = it.title ?? it.metadata?.title ?? url ?? "Untitled";
+      const access = detectAccess(host);
+      const kind = detectKind(url);
       return {
         source: "news" as const,
         title,
         authors,
         year: iso ? Number(iso.slice(0, 4)) : null,
         published_date: iso,
+        updated_date: updatedIso,
         venue,
         cited_by_count: 0,
-        open_access: true,
+        open_access: access === "open",
+        access,
+        kind,
         link: url,
         favicon: host ? `https://www.google.com/s2/favicons?domain=${host}&sz=64` : null,
         language: null,
