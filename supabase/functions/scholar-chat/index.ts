@@ -342,31 +342,40 @@ function extractJsonObject(raw: string) {
 }
 
 function deterministicPayload(prompt: string, candidates: any[], rawIntro?: string) {
-  const todayIso = new Date().toISOString().slice(0, 10);
-  const results = candidates.slice(0, 5).map((r) => {
+  const mapped = candidates.map((r) => {
     const link = normalizeUrl(stripUiMarkup(r.link) || "");
     const host = hostnameOf(link);
     const title = stripUiMarkup(r.title) || "Bron zonder titel";
     const authors = Array.isArray(r.authors) ? r.authors.slice(0, 6).map(stripUiMarkup).filter(Boolean) : [];
-    const venue = stripUiMarkup(r.venue) || host || null;
+    const venue = prettyVenue(stripUiMarkup(r.venue) || null, host);
     const source = r.source === "news" ? "news" : "scholar";
-    const published_date = toIsoDate(r.published_date) ?? (source === "news" ? todayIso : null);
+    const published_date = toIsoDate(r.published_date); // never fall back to today
     const year = typeof r.year === "number" ? r.year : (published_date ? Number(published_date.slice(0, 4)) : null);
+    const access = detectAccess(host, r.open_access === true);
+    const kind = detectKind(link);
     const citation = source === "news"
       ? formatHarvardNews({ authors, isoDate: published_date, title, venue, url: link })
       : formatHarvardScholar({ authors, year, title, venue, url: link });
+    const weight = access === "open" ? 1.0 : access === "paywall" ? 0.7 : 0.85;
     return {
       title, authors, year, venue,
       cited_by_count: Number(r.cited_by_count || 0),
-      open_access: Boolean(r.open_access),
+      open_access: access === "open",
+      access,
+      kind,
       link,
       favicon: r.favicon ?? (host ? `https://www.google.com/s2/favicons?domain=${host}&sz=64` : null),
       reason: stripUiMarkup(r.abstract) || `Deze bron sluit aan op de zoekvraag: ${prompt}`,
       citation,
       source,
       published_date,
+      updated_date: toIsoDate(r.updated_date) ?? null,
+      _weight: weight,
     };
   });
+  // Prefer Open Access on ties.
+  mapped.sort((a, b) => b._weight - a._weight);
+  const results = mapped.slice(0, 5).map(({ _weight, ...rest }) => rest);
 
 
   return {
