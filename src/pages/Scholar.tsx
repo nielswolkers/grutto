@@ -122,9 +122,9 @@ function stripStars(text: string) {
 }
 
 function safePayloadFromContent(content: string, payload?: AssistantPayload): AssistantPayload | undefined {
-  if (payload?.results?.length) return payload;
+  if (payload?.results?.length || payload?.study_sets?.length) return payload;
   const cleaned = stripStars(content || "");
-  if (!cleaned.includes('"results"')) return payload;
+  if (!cleaned.includes('"results"') && !cleaned.includes('"study_sets"')) return payload;
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
   if (start < 0 || end <= start) return payload;
@@ -135,6 +135,7 @@ function safePayloadFromContent(content: string, payload?: AssistantPayload): As
       results: Array.isArray(parsed.results) ? parsed.results : [],
       comparison: stripStars(parsed.comparison || ""),
       followUps: Array.isArray(parsed.followUps) ? parsed.followUps.map(stripStars) : [],
+      study_sets: Array.isArray(parsed.study_sets) ? parsed.study_sets : [],
     };
   } catch {
     return payload;
