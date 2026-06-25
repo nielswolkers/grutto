@@ -493,7 +493,45 @@ export default function Scholar() {
         {/* Floating composer — no chin border, just a transparent floating bar */}
         <div className="absolute bottom-4 left-0 right-0 px-4 pointer-events-none">
           <div className="max-w-2xl mx-auto pointer-events-auto">
+            {attachments.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2 rounded-2xl border bg-background/70 backdrop-blur-md p-2 shadow">
+                {attachments.map((a) => (
+                  <div key={a.id} className="flex items-center gap-2 rounded-lg bg-muted px-2 py-1 text-sm max-w-[220px]">
+                    {a.kind === "image" && a.dataUrl ? (
+                      <img src={a.dataUrl} alt={a.name} className="w-8 h-8 rounded object-cover shrink-0" />
+                    ) : a.kind === "image" ? (
+                      <ImageIcon className="w-4 h-4 shrink-0" />
+                    ) : (
+                      <FileText className="w-4 h-4 shrink-0" />
+                    )}
+                    <span className="truncate">{a.name}</span>
+                    <button onClick={() => removeAttachment(a.id)} className="text-muted-foreground hover:text-destructive shrink-0">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex items-end gap-2 rounded-2xl border bg-background/70 backdrop-blur-md p-2 shadow-lg">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.docx,.pptx,.xlsx,.csv,.txt,.md,image/*,application/pdf,text/*"
+                className="hidden"
+                onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.currentTarget.value = ""; }}
+              />
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="rounded-full shrink-0"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Bestand toevoegen"
+                title="Afbeelding of bestand toevoegen"
+              >
+                <Paperclip className="w-4 h-4" />
+              </Button>
               <Textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -501,12 +539,13 @@ export default function Scholar() {
                 placeholder="Vraag Grutto AI naar studies, nieuws of bronnen…"
                 className="resize-none border-0 focus-visible:ring-0 min-h-[44px] max-h-40 text-base bg-transparent"
               />
-              <Button onClick={() => send(input)} disabled={!input.trim() || sending} size="icon" className="rounded-full shrink-0">
+              <Button onClick={() => send(input)} disabled={(!input.trim() && attachments.length === 0) || sending} size="icon" className="rounded-full shrink-0">
                 <Send className="w-4 h-4" />
               </Button>
             </div>
           </div>
         </div>
+
       </div>
     </div>
   );
