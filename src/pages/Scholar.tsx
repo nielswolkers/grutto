@@ -575,6 +575,36 @@ function AssistantMessage({ message, onFollowUp, starredLinks, onToggleStar }: {
         ))}
       </div>
 
+      {p?.study_sets && p.study_sets.length > 0 && (
+        <div className="space-y-2 pt-2">
+          {p.study_sets.map((s, i) => (
+            <motion.div
+              key={s.id}
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.08 + 0.05 }}
+            >
+              <Link
+                to={`/studieset/${s.id}`}
+                className="flex items-center gap-3 rounded-2xl border bg-card p-4 hover:bg-muted/40 transition-colors shadow-sm"
+              >
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-2xl shrink-0">
+                  {s.emoji || "📚"}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">
+                    Studieset {s.action === "updated" ? "bijgewerkt" : "aangemaakt"}
+                  </div>
+                  <div className="font-semibold truncate">{s.title}</div>
+                </div>
+                <BookOpen className="w-5 h-5 text-muted-foreground shrink-0" />
+                <ArrowRight className="w-5 h-5 shrink-0" />
+              </Link>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+
       {p?.comparison && (
         <motion.p
           initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
