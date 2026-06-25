@@ -87,11 +87,13 @@ interface ResultItem {
   access?: "open" | "paywall" | "unknown";
   kind?: "press_release" | "blog" | null;
 }
+interface StudySetRef { id: string; title: string; emoji?: string; action: "created" | "updated"; }
 interface AssistantPayload {
   intro?: string;
   results?: ResultItem[];
   comparison?: string;
   followUps?: string[];
+  study_sets?: StudySetRef[];
 }
 interface Message {
   id: string;
