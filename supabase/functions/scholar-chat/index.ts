@@ -102,6 +102,74 @@ function hostnameOf(url?: string) {
   try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return null; }
 }
 
+// Map domain → human publisher / outlet name.
+const PUBLISHER_NAMES: Record<string, string> = {
+  "theguardian.com": "The Guardian",
+  "nytimes.com": "The New York Times",
+  "washingtonpost.com": "The Washington Post",
+  "wsj.com": "The Wall Street Journal",
+  "ft.com": "Financial Times",
+  "bbc.com": "BBC", "bbc.co.uk": "BBC",
+  "reuters.com": "Reuters",
+  "apnews.com": "Associated Press",
+  "bloomberg.com": "Bloomberg",
+  "economist.com": "The Economist",
+  "nrc.nl": "NRC", "volkskrant.nl": "de Volkskrant", "ad.nl": "AD",
+  "telegraaf.nl": "De Telegraaf", "trouw.nl": "Trouw", "parool.nl": "Het Parool",
+  "nu.nl": "Nu.nl", "nos.nl": "NOS", "rtlnieuws.nl": "RTL Nieuws",
+  "tweakers.net": "Tweakers", "fd.nl": "Het Financieele Dagblad",
+  "nature.com": "Nature", "science.org": "Science",
+  "sciencedirect.com": "Elsevier ScienceDirect", "elsevier.com": "Elsevier",
+  "springer.com": "Springer", "link.springer.com": "Springer",
+  "wiley.com": "Wiley", "onlinelibrary.wiley.com": "Wiley",
+  "mdpi.com": "MDPI", "frontiersin.org": "Frontiers",
+  "plos.org": "PLOS", "journals.plos.org": "PLOS",
+  "tandfonline.com": "Taylor & Francis", "sagepub.com": "SAGE",
+  "cambridge.org": "Cambridge University Press", "oup.com": "Oxford University Press",
+  "arxiv.org": "arXiv", "biorxiv.org": "bioRxiv", "ssrn.com": "SSRN",
+  "pubmed.ncbi.nlm.nih.gov": "PubMed", "ncbi.nlm.nih.gov": "NCBI",
+  "doi.org": "DOI",
+};
+
+const PAYWALL_HOSTS = new Set([
+  "nytimes.com","wsj.com","ft.com","economist.com","bloomberg.com",
+  "telegraaf.nl","nrc.nl","volkskrant.nl","parool.nl","trouw.nl","fd.nl",
+  "washingtonpost.com",
+]);
+const OPEN_HOSTS = new Set([
+  "theguardian.com","bbc.com","bbc.co.uk","reuters.com","apnews.com",
+  "nu.nl","nos.nl","rtlnieuws.nl","arxiv.org","biorxiv.org",
+  "plos.org","journals.plos.org","frontiersin.org","mdpi.com",
+]);
+
+function prettyVenue(rawVenue: string | null | undefined, host: string | null) {
+  if (host && PUBLISHER_NAMES[host]) return PUBLISHER_NAMES[host];
+  const v = (rawVenue || "").trim();
+  // strip domain-looking venues like "theguardian.com"
+  if (/^[\w-]+\.[a-z.]{2,}$/i.test(v) && host && PUBLISHER_NAMES[host]) return PUBLISHER_NAMES[host];
+  if (/^[\w-]+\.[a-z.]{2,}$/i.test(v)) {
+    // capitalise first part
+    return v.replace(/\.[a-z.]+$/i, "").replace(/(^|\s|-)\w/g, (m) => m.toUpperCase());
+  }
+  return v || (host ? (PUBLISHER_NAMES[host] ?? host) : null);
+}
+
+function detectAccess(host: string | null, openAccessHint?: boolean): "open" | "paywall" | "unknown" {
+  if (openAccessHint === true) return "open";
+  if (!host) return "unknown";
+  if (OPEN_HOSTS.has(host)) return "open";
+  if (PAYWALL_HOSTS.has(host)) return "paywall";
+  if (host.endsWith(".gov") || host.endsWith(".edu") || host.endsWith(".gov.uk") || host.endsWith(".overheid.nl")) return "open";
+  return "unknown";
+}
+
+function detectKind(link: string): "press_release" | "blog" | null {
+  const u = link.toLowerCase();
+  if (/\/(press|pers|persbericht|newsroom|press-release|press_release|media)\b/.test(u)) return "press_release";
+  if (/\/blog(s)?\b/.test(u) || /\.blog\./.test(u)) return "blog";
+  return null;
+}
+
 const MONTHS_NL = ["januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"];
 const MONTH_LOOKUP: Record<string, number> = {
   januari: 1, februari: 2, maart: 3, april: 4, mei: 5, juni: 6, juli: 7, augustus: 8, september: 9, oktober: 10, november: 11, december: 12,
