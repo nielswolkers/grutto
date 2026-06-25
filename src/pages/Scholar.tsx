@@ -259,27 +259,39 @@ export default function Scholar() {
 
   async function send(text: string) {
     const trimmed = text.trim();
-    if (!trimmed || sending) return;
+    if ((!trimmed && attachments.length === 0) || sending) return;
     let threadId = activeId;
     if (!threadId) threadId = await newThread();
     if (!threadId) return;
 
     setSending(true);
     setInput("");
-    const userMsg: Message = { id: crypto.randomUUID(), role: "user", content: trimmed };
+    const sentAttachments = attachments;
+    setAttachments([]);
+    const attachmentSummary = sentAttachments.length
+      ? `\n\n[Bijlagen: ${sentAttachments.map((a) => a.name).join(", ")}]`
+      : "";
+    const visibleContent = trimmed || (sentAttachments.length ? `(${sentAttachments.length} bijlage${sentAttachments.length > 1 ? "n" : ""})` : "");
+    const userMsg: Message = { id: crypto.randomUUID(), role: "user", content: visibleContent };
     setMessages((p) => [...p, userMsg]);
-    await supabase.from("scholar_messages").insert({ thread_id: threadId, role: "user", parts: { text: trimmed } });
+    await supabase.from("scholar_messages").insert({ thread_id: threadId, role: "user", parts: { text: visibleContent } });
 
     if (messages.length === 0) {
-      const title = trimmed.slice(0, 60);
+      const title = (trimmed || sentAttachments[0]?.name || "Nieuw gesprek").slice(0, 60);
       await supabase.from("scholar_threads").update({ title }).eq("id", threadId);
       setThreads((p) => p.map((t) => (t.id === threadId ? { ...t, title } : t)));
     }
 
     try {
-      const history = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content }));
+      const history = [...messages, { ...userMsg, content: (trimmed || "Analyseer de bijlagen.") + attachmentSummary }].map((m) => ({ role: m.role, content: m.content }));
+      // Strip dataUrl from text-only attachments to reduce payload (keep dataUrl for image/pdf)
+      const payloadAttachments = sentAttachments.map((a) => ({
+        kind: a.kind, name: a.name, mime: a.mime,
+        dataUrl: a.text ? undefined : a.dataUrl,
+        text: a.text,
+      }));
       const { data, error } = await supabase.functions.invoke("scholar-chat", {
-        body: { messages: history },
+        body: { messages: history, attachments: payloadAttachments },
       });
       if (error) throw error;
       const payload: AssistantPayload = {
@@ -287,6 +299,7 @@ export default function Scholar() {
         results: data?.results || [],
         comparison: stripStars(data?.comparison || ""),
         followUps: (data?.followUps || []).map(stripStars),
+        study_sets: Array.isArray(data?.study_sets) ? data.study_sets : [],
       };
       const assistant: Message = {
         id: crypto.randomUUID(),
