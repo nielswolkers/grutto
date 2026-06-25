@@ -1137,6 +1137,48 @@ export type Database = {
         }
         Relationships: []
       }
+      starred_sources: {
+        Row: {
+          authors: string[] | null
+          citation: string | null
+          created_at: string
+          favicon: string | null
+          id: string
+          link: string
+          published_date: string | null
+          source: string
+          title: string
+          user_id: string
+          venue: string | null
+        }
+        Insert: {
+          authors?: string[] | null
+          citation?: string | null
+          created_at?: string
+          favicon?: string | null
+          id?: string
+          link: string
+          published_date?: string | null
+          source?: string
+          title: string
+          user_id: string
+          venue?: string | null
+        }
+        Update: {
+          authors?: string[] | null
+          citation?: string | null
+          created_at?: string
+          favicon?: string | null
+          id?: string
+          link?: string
+          published_date?: string | null
+          source?: string
+          title?: string
+          user_id?: string
+          venue?: string | null
+        }
+        Relationships: []
+      }
       story_views: {
         Row: {
           id: string
