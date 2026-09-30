@@ -379,23 +379,29 @@ async function updateStudySetTool(userId: string, args: any) {
 }
 
 // ============== Agent loop ==============
-const PLANNER_SYSTEM = `Je bent Grutto AI, een onderzoeksagent. Je doel: voor de gebruiker zo grondig mogelijk relevante bronnen vinden en studiesets beheren.
+const PLANNER_SYSTEM_BASE = `Je bent Grutto AI, de persoonlijke studie-assistent van de gebruiker in de Grutto app. Je doet onderzoek (bronnen zoeken) EN je hebt volledige toegang tot de eigen gegevens van de gebruiker: vakken, studiesets + kaarten, taken, agenda, notities en whiteboard. Zeg NOOIT dat je hier geen toegang toe hebt — gebruik de tools.
 
 TOOLS:
 - search_scholar: doorzoekt OpenAlex (wetenschappelijke publicaties). Standaard EN+NL, tenzij anders gevraagd.
 - search_news: doorzoekt nieuwsartikelen via Firecrawl. Datum/bron filters beschikbaar.
-- list_study_sets: haalt de studiesets van de gebruiker op (titel, vak, id).
-- get_study_set: leest een specifieke studieset met alle kaarten.
-- create_study_set: maakt een nieuwe studieset met kaarten. Geef 'subject' (naam van het vak) en 'cards' [{term, definition}].
-- update_study_set: bewerkt een bestaande studieset. Gebruik set_id. Kan title/emoji/description aanpassen, add_cards, replace_cards, of delete_card_ids gebruiken.
+- list_subjects: vakken van de gebruiker.
+- list_study_sets / get_study_set / create_study_set / update_study_set: studiesets en kaarten beheren.
+- list_tasks / create_task / complete_task: taken.
+- list_calendar_events / create_calendar_event: agenda. Gebruik tijdzone Europe/Amsterdam.
+- list_notes / create_note: notities.
+- get_whiteboard: whiteboard-kaarten lezen.
 
 ROUTING:
 - Studies/onderzoek/papers → search_scholar.
 - Nieuws/actualiteit → search_news.
 - "Bronnen" of breed onderzoek → beide.
-- Vraag over eigen studiesets, of "leer me X uit mijn studieset" → list_study_sets, evt. get_study_set.
+- Vragen over planning, huiswerk, deadlines, "wat moet ik doen" → list_tasks en/of list_calendar_events.
+- "Zet in mijn agenda / plan in" → create_calendar_event. "Voeg taak toe" → create_task.
+- Vragen over notities of whiteboard → list_notes / get_whiteboard.
+- Vraag over eigen studiesets → list_study_sets, evt. get_study_set.
 - "Maak een studieset over..." → create_study_set.
 - "Voeg kaart toe / pas studieset aan" → eerst list_study_sets als id onbekend, dan update_study_set.
+- Bij vragen over eigen gegevens: zet het volledige antwoord (lijstjes met regeleinden, datums in het Nederlands) in "intro" en laat results leeg.
 
 INTELLIGENTIE:
 - Verzin synoniemen en vertalingen (EN↔NL) voor brede dekking.
@@ -429,13 +435,83 @@ const TOOLS = [
   { type: "function", function: { name: "update_study_set", description: "Bewerk een bestaande studieset. Eigenaar alleen.", parameters: { type: "object", properties: { set_id: { type: "string" }, title: { type: "string" }, description: { type: "string" }, emoji: { type: "string" }, subject: { type: "string" }, add_cards: { type: "array", items: { type: "object", properties: { term: { type: "string" }, definition: { type: "string" } } } }, replace_cards: { type: "array", items: { type: "object", properties: { term: { type: "string" }, definition: { type: "string" } } } }, delete_card_ids: { type: "array", items: { type: "string" } } }, required: ["set_id"] } } },
 ];
 
+// ============== Personal data tools (vakken, taken, agenda, notities, whiteboard) ==============
+const PERSONAL_TOOLS = [
+  { type: "function", function: { name: "list_subjects", description: "Haal de vakken van de gebruiker op.", parameters: { type: "object", properties: {} } } },
+  { type: "function", function: { name: "list_tasks", description: "Haal taken van de gebruiker op, optioneel gefilterd.", parameters: { type: "object", properties: { completed: { type: "boolean" }, due_from: { type: "string", description: "YYYY-MM-DD" }, due_to: { type: "string", description: "YYYY-MM-DD" } } } } },
+  { type: "function", function: { name: "create_task", description: "Maak een taak aan.", parameters: { type: "object", properties: { title: { type: "string" }, description: { type: "string" }, due_date: { type: "string", description: "YYYY-MM-DD" }, due_time: { type: "string", description: "HH:MM" }, priority: { type: "string", enum: ["low","medium","high"] } }, required: ["title","due_date"] } } },
+  { type: "function", function: { name: "complete_task", description: "Markeer een taak als voltooid (of heropen met completed=false).", parameters: { type: "object", properties: { task_id: { type: "string" }, completed: { type: "boolean" } }, required: ["task_id"] } } },
+  { type: "function", function: { name: "list_calendar_events", description: "Haal agenda-afspraken op binnen een periode.", parameters: { type: "object", properties: { from: { type: "string", description: "ISO datum/tijd" }, to: { type: "string", description: "ISO datum/tijd" } } } } },
+  { type: "function", function: { name: "create_calendar_event", description: "Maak een agenda-afspraak.", parameters: { type: "object", properties: { title: { type: "string" }, start_time: { type: "string", description: "ISO 8601 met tijdzone" }, end_time: { type: "string", description: "ISO 8601 met tijdzone" }, description: { type: "string" }, location: { type: "string" }, all_day: { type: "boolean" }, event_type: { type: "string" } }, required: ["title","start_time","end_time"] } } },
+  { type: "function", function: { name: "list_notes", description: "Haal notities op, optioneel met zoekterm of map.", parameters: { type: "object", properties: { search: { type: "string" }, folder_name: { type: "string" } } } } },
+  { type: "function", function: { name: "create_note", description: "Maak een notitie.", parameters: { type: "object", properties: { title: { type: "string" }, content: { type: "string" }, folder_name: { type: "string" }, is_pinned: { type: "boolean" } }, required: ["title"] } } },
+  { type: "function", function: { name: "get_whiteboard", description: "Lees de whiteboards van de gebruiker (kaarten: notities, todo's, links).", parameters: { type: "object", properties: {} } } },
+];
+TOOLS.push(...(PERSONAL_TOOLS as any));
+
+let currentWhiteboard: any = null;
+
+async function runPersonalTool(name: string, args: any, userId: string) {
+  const db = makeDb(userId);
+  if (name === "list_subjects") {
+    const { data, error } = await db.from("subjects").select("id, name, emoji").eq("user_id", userId).order("sort_order");
+    return error ? { error: error.message } : { data };
+  }
+  if (name === "list_tasks") {
+    let q = db.from("tasks").select("id, title, description, due_date, due_time, priority, completed").eq("user_id", userId).order("due_date").limit(150);
+    if (typeof args.completed === "boolean") q = q.eq("completed", args.completed);
+    if (args.due_from) q = q.gte("due_date", args.due_from);
+    if (args.due_to) q = q.lte("due_date", args.due_to);
+    const { data, error } = await q;
+    return error ? { error: error.message } : { data };
+  }
+  if (name === "create_task") {
+    const { data, error } = await db.from("tasks").insert({ user_id: userId, title: args.title, description: args.description ?? null, due_date: args.due_date, due_time: args.due_time ?? null, priority: args.priority ?? "medium" }).select("id, title, due_date, due_time, priority").single();
+    return error ? { error: error.message } : { data };
+  }
+  if (name === "complete_task") {
+    const done = args.completed !== false;
+    const { data, error } = await db.from("tasks").update({ completed: done, completed_at: done ? new Date().toISOString() : null }).eq("id", args.task_id).eq("user_id", userId).select("id, title, completed").maybeSingle();
+    return error ? { error: error.message } : data ? { data } : { error: "Taak niet gevonden" };
+  }
+  if (name === "list_calendar_events") {
+    let q = db.from("calendar_events").select("id, title, description, start_time, end_time, all_day, location, event_type").eq("user_id", userId).order("start_time").limit(150);
+    if (args.from) q = q.gte("start_time", args.from);
+    if (args.to) q = q.lte("start_time", args.to);
+    const { data, error } = await q;
+    return error ? { error: error.message } : { data };
+  }
+  if (name === "create_calendar_event") {
+    const { data, error } = await db.from("calendar_events").insert({ user_id: userId, title: args.title, start_time: args.start_time, end_time: args.end_time, description: args.description ?? null, location: args.location ?? null, all_day: args.all_day ?? false, ...(args.event_type ? { event_type: args.event_type } : {}) }).select("id, title, start_time, end_time").single();
+    return error ? { error: error.message } : { data };
+  }
+  if (name === "list_notes") {
+    let q = db.from("notes").select("id, title, content, folder_name, is_pinned, updated_at").eq("user_id", userId).order("updated_at", { ascending: false }).limit(50);
+    if (args.folder_name) q = q.eq("folder_name", args.folder_name);
+    if (args.search) q = q.or(`title.ilike.%${String(args.search).replace(/[,()%]/g, "")}%,content.ilike.%${String(args.search).replace(/[,()%]/g, "")}%`);
+    const { data, error } = await q;
+    return error ? { error: error.message } : { data: (data ?? []).map((n: any) => ({ ...n, content: String(n.content ?? "").slice(0, 3000) })) };
+  }
+  if (name === "create_note") {
+    const { data, error } = await db.from("notes").insert({ user_id: userId, title: args.title, content: args.content ?? "", folder_name: args.folder_name ?? null, is_pinned: args.is_pinned ?? false }).select("id, title").single();
+    return error ? { error: error.message } : { data };
+  }
+  if (name === "get_whiteboard") {
+    return currentWhiteboard ? { data: currentWhiteboard } : { error: "Geen whiteboard-gegevens beschikbaar op dit apparaat." };
+  }
+  return null;
+}
+
 async function runTool(name: string, args: any, userId: string) {
   if (name === "search_scholar") return await openAlexSearch(args);
   if (name === "search_news") return await firecrawlNewsSearch(args);
+  if (userId === "anon") return { error: "Niet ingelogd" };
   if (name === "list_study_sets") return { sets: await listStudySets(userId) };
   if (name === "get_study_set") return await getStudySet(userId, args.set_id);
   if (name === "create_study_set") return await createStudySetTool(userId, args);
   if (name === "update_study_set") return await updateStudySetTool(userId, args);
+  const personal = await runPersonalTool(name, args, userId);
+  if (personal) return personal;
   return { error: `Onbekende tool: ${name}` };
 }
 
@@ -488,7 +564,9 @@ Deno.serve(async (req) => {
 
     // Build conversation
     const history = incoming.filter((m) => m.role === "user" || m.role === "assistant").slice(-10);
-    const convo: any[] = [{ role: "system", content: PLANNER_SYSTEM }];
+    currentWhiteboard = body.whiteboard ?? null;
+    const nowNl = new Date().toLocaleString("nl-NL", { timeZone: "Europe/Amsterdam", dateStyle: "full", timeStyle: "short" });
+    const convo: any[] = [{ role: "system", content: `${PLANNER_SYSTEM_BASE}\n\nHuidige datum/tijd (Europe/Amsterdam): ${nowNl}.` }];
     for (let i = 0; i < history.length; i++) {
       const m = history[i];
       const isLast = i === history.length - 1;
@@ -545,6 +623,7 @@ Deno.serve(async (req) => {
           const trimmed = {
             ...(result?.error ? { error: result.error } : {}),
             ...((result as any)?.sets ? { sets: (result as any).sets } : {}),
+            ...((result as any)?.data !== undefined ? { data: (result as any).data } : {}),
             ...((result as any)?.id && !items.length ? { id: (result as any).id, title: (result as any).title, action: (result as any).action } : {}),
             ...((result as any)?.cards ? { cards: (result as any).cards.slice(0, 100) } : {}),
             total: (result as any)?.total,

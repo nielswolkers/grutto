@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowRight, Copy, GraduationCap, Plus, Send, Trash2, Loader2, PanelLeft, X, Star, Paperclip, Image as ImageIcon, FileText, Upload, BookOpen } from "lucide-react";
+import { ArrowRight, Copy, GraduationCap, Plus, Send, Trash2, Loader2, PanelLeft, X, Star, Paperclip, Image as ImageIcon, FileText, Upload, BookOpen, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -257,8 +257,37 @@ export default function Scholar() {
     })));
   }
 
-  async function send(text: string) {
+  function readWhiteboard() {
+    try {
+      const boards = JSON.parse(localStorage.getItem("workspace_boards") || "[]");
+      return (Array.isArray(boards) ? boards : []).map((b: any) => ({
+        name: b.name,
+        cards: (b.cards || []).map((c: any) => c.type === "note" ? { type: "note", title: c.title, content: String(c.content || "").slice(0, 1500) }
+          : c.type === "todo" ? { type: "todo", title: c.title, items: (c.items || []).map((i: any) => ({ text: i.text, completed: i.completed })) }
+          : c.type === "link" ? { type: "link", url: c.url, title: c.title } : { type: c.type }),
+      }));
+    } catch { return null; }
+  }
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+
+  async function resubmitEdit(msgId: string) {
+    const idx = messages.findIndex((m) => m.id === msgId);
+    const text = editText.trim();
+    if (idx < 0 || !text || sending) return;
+    const removed = messages.slice(idx).map((m) => m.id);
+    const base = messages.slice(0, idx);
+    setEditingId(null);
+    setMessages(base);
+    const { error } = await supabase.from("scholar_messages").delete().in("id", removed);
+    if (error) { toast.error("Kon oude berichten niet verwijderen"); }
+    await send(text, base);
+  }
+
+  async function send(text: string, baseMessages?: Message[]) {
     const trimmed = text.trim();
+    const prior = baseMessages ?? messages;
     if ((!trimmed && attachments.length === 0) || sending) return;
     let threadId = activeId;
     if (!threadId) threadId = await newThread();
@@ -273,17 +302,18 @@ export default function Scholar() {
       : "";
     const visibleContent = trimmed || (sentAttachments.length ? `(${sentAttachments.length} bijlage${sentAttachments.length > 1 ? "n" : ""})` : "");
     const userMsg: Message = { id: crypto.randomUUID(), role: "user", content: visibleContent };
-    setMessages((p) => [...p, userMsg]);
-    await supabase.from("scholar_messages").insert({ thread_id: threadId, role: "user", parts: { text: visibleContent } });
+    setMessages([...prior, userMsg]);
+    const { data: savedUser } = await supabase.from("scholar_messages").insert({ thread_id: threadId, role: "user", parts: { text: visibleContent } }).select("id").single();
+    if (savedUser?.id) { const tempId = userMsg.id; userMsg.id = savedUser.id; setMessages((p) => p.map((m) => (m.id === tempId ? { ...m, id: savedUser.id } : m))); }
 
-    if (messages.length === 0) {
+    if (prior.length === 0) {
       const title = (trimmed || sentAttachments[0]?.name || "Nieuw gesprek").slice(0, 60);
       await supabase.from("scholar_threads").update({ title }).eq("id", threadId);
       setThreads((p) => p.map((t) => (t.id === threadId ? { ...t, title } : t)));
     }
 
     try {
-      const history = [...messages, { ...userMsg, content: (trimmed || "Analyseer de bijlagen.") + attachmentSummary }].map((m) => ({ role: m.role, content: m.content }));
+      const history = [...prior, { ...userMsg, content: (trimmed || "Analyseer de bijlagen.") + attachmentSummary }].map((m) => ({ role: m.role, content: m.content }));
       // Strip dataUrl from text-only attachments to reduce payload (keep dataUrl for image/pdf)
       const payloadAttachments = sentAttachments.map((a) => ({
         kind: a.kind, name: a.name, mime: a.mime,
@@ -291,7 +321,7 @@ export default function Scholar() {
         text: a.text,
       }));
       const { data, error } = await supabase.functions.invoke("scholar-chat", {
-        body: { messages: history, attachments: payloadAttachments },
+        body: { messages: history, attachments: payloadAttachments, whiteboard: readWhiteboard() },
       });
       if (error) throw error;
       const payload: AssistantPayload = {
@@ -307,12 +337,13 @@ export default function Scholar() {
         content: stripStars(payload.intro || ""),
         payload,
       };
-      setMessages((p) => [...p, assistant]);
-      await supabase.from("scholar_messages").insert({
+      const { data: savedAsst } = await supabase.from("scholar_messages").insert({
         thread_id: threadId,
         role: "assistant",
         parts: { text: payload.intro || "", payload, search: data?.search } as any,
-      });
+      }).select("id").single();
+      if (savedAsst?.id) assistant.id = savedAsst.id;
+      setMessages((p) => [...p, assistant]);
       await supabase.from("scholar_threads").update({ updated_at: new Date().toISOString() }).eq("id", threadId);
     } catch (e: any) {
       toast.error(e?.message || "Verzoek mislukt");
@@ -473,8 +504,38 @@ export default function Scholar() {
               </div>
             ) : (
               messages.map((m) => m.role === "user" ? (
-                <div key={m.id} className="flex justify-end">
-                  <div className="max-w-[85%] rounded-lg px-4 py-3 text-base bg-secondary">{m.content}</div>
+                <div key={m.id} className="group flex justify-end items-start gap-2">
+                  {editingId === m.id ? (
+                    <div className="w-full max-w-[85%] rounded-lg border bg-background p-2">
+                      <Textarea
+                        autoFocus
+                        value={editText}
+                        onChange={(e) => setEditText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); resubmitEdit(m.id); }
+                          if (e.key === "Escape") setEditingId(null);
+                        }}
+                        className="min-h-[60px] text-base border-0 focus-visible:ring-0 resize-none"
+                      />
+                      <div className="flex justify-end gap-2 mt-2">
+                        <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>Annuleren</Button>
+                        <Button size="sm" onClick={() => resubmitEdit(m.id)} disabled={!editText.trim() || sending}>Verzenden</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {!sending && (
+                        <button
+                          onClick={() => { setEditingId(m.id); setEditText(m.content); }}
+                          className="mt-2 p-1.5 rounded-full text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-foreground transition"
+                          aria-label="Bericht bewerken"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <div className="max-w-[85%] rounded-lg px-4 py-3 text-base bg-secondary">{m.content}</div>
+                    </>
+                  )}
                 </div>
               ) : (
                 <AssistantMessage
