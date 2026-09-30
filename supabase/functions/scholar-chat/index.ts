@@ -564,7 +564,9 @@ Deno.serve(async (req) => {
 
     // Build conversation
     const history = incoming.filter((m) => m.role === "user" || m.role === "assistant").slice(-10);
-    const convo: any[] = [{ role: "system", content: PLANNER_SYSTEM }];
+    currentWhiteboard = body.whiteboard ?? null;
+    const nowNl = new Date().toLocaleString("nl-NL", { timeZone: "Europe/Amsterdam", dateStyle: "full", timeStyle: "short" });
+    const convo: any[] = [{ role: "system", content: `${PLANNER_SYSTEM_BASE}\n\nHuidige datum/tijd (Europe/Amsterdam): ${nowNl}.` }];
     for (let i = 0; i < history.length; i++) {
       const m = history[i];
       const isLast = i === history.length - 1;
@@ -621,6 +623,7 @@ Deno.serve(async (req) => {
           const trimmed = {
             ...(result?.error ? { error: result.error } : {}),
             ...((result as any)?.sets ? { sets: (result as any).sets } : {}),
+            ...((result as any)?.data !== undefined ? { data: (result as any).data } : {}),
             ...((result as any)?.id && !items.length ? { id: (result as any).id, title: (result as any).title, action: (result as any).action } : {}),
             ...((result as any)?.cards ? { cards: (result as any).cards.slice(0, 100) } : {}),
             total: (result as any)?.total,
