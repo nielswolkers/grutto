@@ -304,7 +304,7 @@ export default function Scholar() {
     const userMsg: Message = { id: crypto.randomUUID(), role: "user", content: visibleContent };
     setMessages([...prior, userMsg]);
     const { data: savedUser } = await supabase.from("scholar_messages").insert({ thread_id: threadId, role: "user", parts: { text: visibleContent } }).select("id").single();
-    if (savedUser?.id) { userMsg.id = savedUser.id; setMessages((p) => p.map((m) => (m.content === visibleContent && m.role === "user" && !p.some((x) => x.id === savedUser.id) ? { ...m, id: savedUser.id } : m))); }
+    if (savedUser?.id) { const tempId = userMsg.id; userMsg.id = savedUser.id; setMessages((p) => p.map((m) => (m.id === tempId ? { ...m, id: savedUser.id } : m))); }
 
     if (prior.length === 0) {
       const title = (trimmed || sentAttachments[0]?.name || "Nieuw gesprek").slice(0, 60);
