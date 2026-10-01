@@ -136,6 +136,12 @@ export default function Dashboard() {
   };
 
   const getProgressLabel = () => {
+    if (sessionStatus === 'running') {
+      return { text: "Bezig", className: "bg-green-100 text-green-800", dotClassName: "bg-green-500" };
+    }
+    if (sessionStatus === 'paused') {
+      return { text: "Gepauzeerd", className: "bg-yellow-100 text-yellow-800", dotClassName: "bg-orange-500" };
+    }
     if (studyProgress >= 100) return { text: "Doel bereikt!", className: "bg-green-100 text-green-800" };
     if (studyProgress >= 70) return { text: "Goed bezig", className: "bg-blue-100 text-blue-800" };
     return { text: "Achter op schema", className: "bg-yellow-100 text-yellow-800" };
