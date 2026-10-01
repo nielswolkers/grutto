@@ -8,6 +8,13 @@
       "when": 1790840907242,
       "tag": "0000_fix_group_fn_grants_and_session_subject",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790841851939,
+      "tag": "0001_study_session_pause_state",
+      "breakpoints": true
     }
   ]
 }

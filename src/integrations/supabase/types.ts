@@ -1283,9 +1283,12 @@ export type Database = {
         Row: {
           created_at: string
           duration_minutes: number | null
+          elapsed_seconds: number
           ended_at: string | null
           id: string
           is_active: boolean
+          is_paused: boolean
+          last_resumed_at: string | null
           started_at: string
           subject_id: string | null
           subject_name: string | null
@@ -1294,9 +1297,12 @@ export type Database = {
         Insert: {
           created_at?: string
           duration_minutes?: number | null
+          elapsed_seconds?: number
           ended_at?: string | null
           id?: string
           is_active?: boolean
+          is_paused?: boolean
+          last_resumed_at?: string | null
           started_at?: string
           subject_id?: string | null
           subject_name?: string | null
@@ -1305,9 +1311,12 @@ export type Database = {
         Update: {
           created_at?: string
           duration_minutes?: number | null
+          elapsed_seconds?: number
           ended_at?: string | null
           id?: string
           is_active?: boolean
+          is_paused?: boolean
+          last_resumed_at?: string | null
           started_at?: string
           subject_id?: string | null
           subject_name?: string | null
