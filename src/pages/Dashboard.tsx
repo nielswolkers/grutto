@@ -43,13 +43,41 @@ export default function Dashboard() {
   const [todayStudyMinutes, setTodayStudyMinutes] = useState(0);
   const [upcomingTests, setUpcomingTests] = useState<UpcomingTest[]>([]);
   const [loadingTests, setLoadingTests] = useState(true);
+  const [sessionStatus, setSessionStatus] = useState<'none' | 'running' | 'paused'>('none');
 
   useEffect(() => {
-    if (user) {
-      loadStudyProgress();
-      loadUpcomingTests();
-    }
+    if (!user) return;
+
+    loadStudyProgress();
+    loadUpcomingTests();
+    loadSessionStatus();
+
+    const channel = supabase
+      .channel('dashboard-study-sessions')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'study_sessions' }, () => {
+        loadSessionStatus();
+        loadStudyProgress();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
+
+  const loadSessionStatus = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('study_sessions')
+      .select('is_paused')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .order('started_at', { ascending: false })
+      .limit(1);
+
+    const active = data?.[0];
+    setSessionStatus(!active ? 'none' : active.is_paused ? 'paused' : 'running');
+  };
 
   const loadStudyProgress = async () => {
     if (!user) return;
