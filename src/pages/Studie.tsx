@@ -346,11 +346,18 @@ export default function Studie() {
       return;
     }
 
+    const banked = active.elapsed_seconds ?? 0;
+    const resumedMs = new Date(active.last_resumed_at ?? active.started_at).getTime();
+    const paused = active.is_paused ?? false;
+    const total = paused ? banked : banked + Math.floor((Date.now() - resumedMs) / 1000);
+
     setIsStudying(true);
-    setStudyStartTime(new Date(active.started_at));
+    setIsPaused(paused);
+    setStudyStartTime(new Date(Date.now() - total * 1000));
     setCurrentSessionId(active.id);
-    setCurrentSubjectName((active as any).subject_name ?? null);
-    setElapsedTime(Math.floor((Date.now() - startedMs) / 1000));
+    setCurrentSubjectName(active.subject_name ?? null);
+    setPausedElapsedTime(total);
+    setElapsedTime(Math.max(0, total));
   };
 
   const loadActiveSessions = async () => {
@@ -449,12 +456,16 @@ export default function Studie() {
 
       const subjectId = await ensureSubject(courseName);
 
+      const nowIso = new Date().toISOString();
       const { data, error } = await supabase
         .from("study_sessions")
         .insert({
           user_id: user.id,
           is_active: true,
-          started_at: new Date().toISOString(),
+          is_paused: false,
+          elapsed_seconds: 0,
+          started_at: nowIso,
+          last_resumed_at: nowIso,
           subject_id: subjectId,
           subject_name: courseName,
         })
@@ -481,18 +492,46 @@ export default function Studie() {
   };
 
 
-  const pauseStudySession = () => {
-    if (!isStudying || isPaused) return;
+  const pauseStudySession = async () => {
+    if (!isStudying || isPaused || !currentSessionId) return;
+
     setPausedElapsedTime(elapsedTime);
     setIsPaused(true);
+
+    const { error } = await supabase
+      .from("study_sessions")
+      .update({ is_paused: true, elapsed_seconds: elapsedTime })
+      .eq("id", currentSessionId);
+
+    if (error) {
+      console.error("Failed to pause session:", error);
+      toast.error("Kon studiesessie niet pauzeren");
+      return;
+    }
     toast.success("Studiesessie gepauzeerd");
   };
 
-  const resumeStudySession = () => {
-    if (!isPaused) return;
-    const newStartTime = new Date(Date.now() - pausedElapsedTime * 1000);
-    setStudyStartTime(newStartTime);
+  const resumeStudySession = async () => {
+    if (!isPaused || !currentSessionId) return;
+
+    const resumedAt = new Date();
+    setStudyStartTime(new Date(resumedAt.getTime() - pausedElapsedTime * 1000));
     setIsPaused(false);
+
+    const { error } = await supabase
+      .from("study_sessions")
+      .update({
+        is_paused: false,
+        elapsed_seconds: pausedElapsedTime,
+        last_resumed_at: resumedAt.toISOString(),
+      })
+      .eq("id", currentSessionId);
+
+    if (error) {
+      console.error("Failed to resume session:", error);
+      toast.error("Kon studiesessie niet hervatten");
+      return;
+    }
     toast.success("Studiesessie hervat");
   };
 
