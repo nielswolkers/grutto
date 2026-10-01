@@ -1611,9 +1611,9 @@ export default function Studie() {
                 <p className="text-muted-foreground">
                   {isStudying 
                     ? isPaused 
-                      ? 'Gepauzeerd' 
-                      : 'Je bent aan het studeren' 
-                    : 'Start een studiesessie'}
+                      ? `Gepauzeerd${currentSubjectName ? ` · ${currentSubjectName}` : ''}` 
+                      : `Je bent aan het studeren${currentSubjectName ? ` · ${currentSubjectName}` : ''}` 
+                    : 'Kies een vak om te starten'}
                 </p>
                 <p className="text-sm text-primary font-medium mt-1">
                   Vandaag: {formatMinutes(myTodayStudyMinutes + (isStudying && !isPaused ? Math.floor(elapsedTime / 60) : 0))} gestudeerd
