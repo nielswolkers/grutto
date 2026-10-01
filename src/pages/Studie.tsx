@@ -401,9 +401,43 @@ export default function Studie() {
     setTodayStudyTimes(timesMap);
   };
 
-  const startStudySession = async () => {
+  const COURSES = [
+    "Natuurkunde", "Wiskunde", "Scheikunde", "Biologie", "Economie",
+    "Bedrijfseconomie", "Geschiedenis", "BSM", "Engels", "Duits",
+    "Frans", "Nederlands", "Spaans", "Informatica",
+    "Maatschappijwetenschappen", "Aardrijkskunde",
+  ];
+
+  // Finds the user's subject by name, creating it when it doesn't exist yet
+  const ensureSubject = async (name: string) => {
+    if (!user) return null;
+
+    const { data: existing } = await supabase
+      .from("subjects")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("name", name)
+      .maybeSingle();
+
+    if (existing?.id) return existing.id;
+
+    const { data: created, error } = await supabase
+      .from("subjects")
+      .insert({ user_id: user.id, name })
+      .select("id")
+      .single();
+
+    if (error) {
+      console.error("Failed to create subject:", error);
+      return null;
+    }
+    return created.id;
+  };
+
+  const startStudySession = async (courseName: string) => {
     if (!user) return;
 
+    setStartingSubject(courseName);
     try {
       // Defensive: clean any lingering active session for this user before starting a new one
       await supabase
@@ -412,11 +446,16 @@ export default function Studie() {
         .eq("user_id", user.id)
         .eq("is_active", true);
 
+      const subjectId = await ensureSubject(courseName);
+
       const { data, error } = await supabase
         .from("study_sessions")
         .insert({
           user_id: user.id,
           is_active: true,
+          started_at: new Date().toISOString(),
+          subject_id: subjectId,
+          subject_name: courseName,
         })
         .select()
         .single();
@@ -427,14 +466,19 @@ export default function Studie() {
       setIsPaused(false);
       setStudyStartTime(new Date(data.started_at));
       setCurrentSessionId(data.id);
+      setCurrentSubjectName(courseName);
       setElapsedTime(0);
       setPausedElapsedTime(0);
-      toast.success("Studiesessie gestart");
+      setSubjectDialogOpen(false);
+      toast.success(`Studiesessie gestart: ${courseName}`);
     } catch (error: any) {
       console.error("Failed to start session:", error);
       toast.error(error?.message || "Kon studiesessie niet starten");
+    } finally {
+      setStartingSubject(null);
     }
   };
+
 
   const pauseStudySession = () => {
     if (!isStudying || isPaused) return;
