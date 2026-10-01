@@ -43,13 +43,41 @@ export default function Dashboard() {
   const [todayStudyMinutes, setTodayStudyMinutes] = useState(0);
   const [upcomingTests, setUpcomingTests] = useState<UpcomingTest[]>([]);
   const [loadingTests, setLoadingTests] = useState(true);
+  const [sessionStatus, setSessionStatus] = useState<'none' | 'running' | 'paused'>('none');
 
   useEffect(() => {
-    if (user) {
-      loadStudyProgress();
-      loadUpcomingTests();
-    }
+    if (!user) return;
+
+    loadStudyProgress();
+    loadUpcomingTests();
+    loadSessionStatus();
+
+    const channel = supabase
+      .channel('dashboard-study-sessions')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'study_sessions' }, () => {
+        loadSessionStatus();
+        loadStudyProgress();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
+
+  const loadSessionStatus = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('study_sessions')
+      .select('is_paused')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .order('started_at', { ascending: false })
+      .limit(1);
+
+    const active = data?.[0];
+    setSessionStatus(!active ? 'none' : active.is_paused ? 'paused' : 'running');
+  };
 
   const loadStudyProgress = async () => {
     if (!user) return;
@@ -64,7 +92,7 @@ export default function Dashboard() {
       
       const { data: sessions, error } = await supabase
         .from("study_sessions")
-        .select("duration_minutes, is_active, started_at")
+        .select("duration_minutes, is_active, is_paused, elapsed_seconds, last_resumed_at, started_at")
         .eq("user_id", user.id)
         .gte("started_at", dayStart)
         .lte("started_at", dayEnd);
@@ -77,14 +105,16 @@ export default function Dashboard() {
       let totalMinutes = 0;
       sessions?.forEach(session => {
         if (session.is_active) {
-          // For active sessions, calculate time from started_at until now
-          const startTime = new Date(session.started_at).getTime();
-          const activeMinutes = Math.floor((Date.now() - startTime) / 60000);
-          totalMinutes += Math.max(0, activeMinutes);
+          // Running session: banked time plus time since the last resume (paused time excluded)
+          const banked = session.elapsed_seconds ?? 0;
+          const resumedAt = new Date(session.last_resumed_at ?? session.started_at).getTime();
+          const liveSeconds = session.is_paused ? banked : banked + (Date.now() - resumedAt) / 1000;
+          totalMinutes += Math.max(0, Math.floor(liveSeconds / 60));
         } else {
           totalMinutes += session.duration_minutes || 0;
         }
       });
+      
       
       setTodayStudyMinutes(totalMinutes);
       const goalMinutes = profile?.study_goal_minutes || 120;
@@ -106,6 +136,12 @@ export default function Dashboard() {
   };
 
   const getProgressLabel = () => {
+    if (sessionStatus === 'running') {
+      return { text: "Bezig", className: "bg-green-100 text-green-800", dotClassName: "bg-green-500" };
+    }
+    if (sessionStatus === 'paused') {
+      return { text: "Gepauzeerd", className: "bg-yellow-100 text-yellow-800", dotClassName: "bg-orange-500" };
+    }
     if (studyProgress >= 100) return { text: "Doel bereikt!", className: "bg-green-100 text-green-800" };
     if (studyProgress >= 70) return { text: "Goed bezig", className: "bg-blue-100 text-blue-800" };
     return { text: "Achter op schema", className: "bg-yellow-100 text-yellow-800" };
@@ -176,7 +212,12 @@ export default function Dashboard() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <h3 className="text-lg font-semibold text-foreground">Je studievoortgang vandaag</h3>
-                <span className={`text-xs font-medium px-2 py-1 rounded-full ${progressLabel.className}`}>{progressLabel.text}</span>
+                <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full ${progressLabel.className}`}>
+                  {'dotClassName' in progressLabel && progressLabel.dotClassName && (
+                    <span className={`w-2 h-2 rounded-full animate-pulse ${progressLabel.dotClassName}`} />
+                  )}
+                  {progressLabel.text}
+                </span>
               </div>
               <div className="text-right">
                 <p className="text-sm text-muted-foreground mb-1">{formatStudyTime(todayStudyMinutes)} / {formatStudyTime(studyGoal)}</p>
