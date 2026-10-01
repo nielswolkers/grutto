@@ -349,6 +349,7 @@ export default function Studie() {
     setIsStudying(true);
     setStudyStartTime(new Date(active.started_at));
     setCurrentSessionId(active.id);
+    setCurrentSubjectName((active as any).subject_name ?? null);
     setElapsedTime(Math.floor((Date.now() - startedMs) / 1000));
   };
 
