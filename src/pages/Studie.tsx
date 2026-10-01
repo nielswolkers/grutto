@@ -1654,7 +1654,7 @@ export default function Studie() {
                     : 'Kies een vak om te starten'}
                 </p>
                 <p className="text-sm text-primary font-medium mt-1">
-                  Vandaag: {formatMinutes(myTodayStudyMinutes + (isStudying && !isPaused ? Math.floor(elapsedTime / 60) : 0))} gestudeerd
+                  Vandaag: {formatMinutes(myTodayStudyMinutes + (isStudying ? Math.floor(elapsedTime / 60) : 0))} gestudeerd
                 </p>
               </div>
             </div>
