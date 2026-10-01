@@ -515,6 +515,7 @@ export default function Studie() {
       setIsPaused(false);
       setStudyStartTime(null);
       setCurrentSessionId(null);
+      setCurrentSubjectName(null);
       setElapsedTime(0);
       setPausedElapsedTime(0);
       
