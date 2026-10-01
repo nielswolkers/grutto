@@ -280,21 +280,18 @@ export default function Studie() {
     const dayStart = startOfDay(today).toISOString();
     const dayEnd = endOfDay(today).toISOString();
 
+    // Only completed sessions; the running session is added live in the timer card.
     const { data: sessions } = await supabase
       .from("study_sessions")
       .select("duration_minutes, is_active, started_at")
       .eq("user_id", user.id)
+      .eq("is_active", false)
       .gte("started_at", dayStart)
       .lte("started_at", dayEnd);
 
     let totalMinutes = 0;
     sessions?.forEach(session => {
-      if (session.is_active) {
-        const startTime = new Date(session.started_at).getTime();
-        totalMinutes += Math.floor((Date.now() - startTime) / 60000);
-      } else {
-        totalMinutes += session.duration_minutes || 0;
-      }
+      totalMinutes += session.duration_minutes || 0;
     });
     setMyTodayStudyMinutes(totalMinutes);
   };
