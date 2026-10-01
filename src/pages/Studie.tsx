@@ -1660,13 +1660,31 @@ export default function Studie() {
                   </Button>
                 </div>
               ) : (
-                <Button
-                  size="lg"
-                  onClick={startStudySession}
-                  className="rounded-full w-14 h-14 p-0"
-                >
-                  <Play className="w-6 h-6 ml-1" />
-                </Button>
+                <Dialog open={subjectDialogOpen} onOpenChange={setSubjectDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="lg" className="rounded-full w-14 h-14 p-0">
+                      <Play className="w-6 h-6 ml-1" />
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                      <DialogTitle>Welk vak ga je studeren?</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid grid-cols-2 gap-2 pt-2">
+                      {COURSES.map((course) => (
+                        <Button
+                          key={course}
+                          variant="outline"
+                          disabled={startingSubject !== null}
+                          onClick={() => startStudySession(course)}
+                          className="justify-start rounded-full h-11"
+                        >
+                          {startingSubject === course ? "Starten..." : course}
+                        </Button>
+                      ))}
+                    </div>
+                  </DialogContent>
+                </Dialog>
               )}
             </div>
           </div>
