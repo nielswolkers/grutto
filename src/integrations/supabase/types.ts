@@ -1287,6 +1287,8 @@ export type Database = {
           id: string
           is_active: boolean
           started_at: string
+          subject_id: string | null
+          subject_name: string | null
           user_id: string
         }
         Insert: {
@@ -1296,6 +1298,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           started_at?: string
+          subject_id?: string | null
+          subject_name?: string | null
           user_id: string
         }
         Update: {
@@ -1305,6 +1309,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           started_at?: string
+          subject_id?: string | null
+          subject_name?: string | null
           user_id?: string
         }
         Relationships: []

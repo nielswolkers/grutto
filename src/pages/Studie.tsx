@@ -208,6 +208,9 @@ export default function Studie() {
   const [activeSessions, setActiveSessions] = useState<Map<string, StudySession>>(new Map());
   const [todayStudyTimes, setTodayStudyTimes] = useState<Map<string, number>>(new Map());
   const [myTodayStudyMinutes, setMyTodayStudyMinutes] = useState(0);
+  const [subjectDialogOpen, setSubjectDialogOpen] = useState(false);
+  const [currentSubjectName, setCurrentSubjectName] = useState<string | null>(null);
+  const [startingSubject, setStartingSubject] = useState<string | null>(null);
 
   // Confetti for first visit
   const [showConfetti, setShowConfetti] = useState(false);
@@ -346,6 +349,7 @@ export default function Studie() {
     setIsStudying(true);
     setStudyStartTime(new Date(active.started_at));
     setCurrentSessionId(active.id);
+    setCurrentSubjectName((active as any).subject_name ?? null);
     setElapsedTime(Math.floor((Date.now() - startedMs) / 1000));
   };
 
@@ -398,9 +402,43 @@ export default function Studie() {
     setTodayStudyTimes(timesMap);
   };
 
-  const startStudySession = async () => {
+  const COURSES = [
+    "Natuurkunde", "Wiskunde", "Scheikunde", "Biologie", "Economie",
+    "Bedrijfseconomie", "Geschiedenis", "BSM", "Engels", "Duits",
+    "Frans", "Nederlands", "Spaans", "Informatica",
+    "Maatschappijwetenschappen", "Aardrijkskunde",
+  ];
+
+  // Finds the user's subject by name, creating it when it doesn't exist yet
+  const ensureSubject = async (name: string) => {
+    if (!user) return null;
+
+    const { data: existing } = await supabase
+      .from("subjects")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("name", name)
+      .maybeSingle();
+
+    if (existing?.id) return existing.id;
+
+    const { data: created, error } = await supabase
+      .from("subjects")
+      .insert({ user_id: user.id, name })
+      .select("id")
+      .single();
+
+    if (error) {
+      console.error("Failed to create subject:", error);
+      return null;
+    }
+    return created.id;
+  };
+
+  const startStudySession = async (courseName: string) => {
     if (!user) return;
 
+    setStartingSubject(courseName);
     try {
       // Defensive: clean any lingering active session for this user before starting a new one
       await supabase
@@ -409,11 +447,16 @@ export default function Studie() {
         .eq("user_id", user.id)
         .eq("is_active", true);
 
+      const subjectId = await ensureSubject(courseName);
+
       const { data, error } = await supabase
         .from("study_sessions")
         .insert({
           user_id: user.id,
           is_active: true,
+          started_at: new Date().toISOString(),
+          subject_id: subjectId,
+          subject_name: courseName,
         })
         .select()
         .single();
@@ -424,14 +467,19 @@ export default function Studie() {
       setIsPaused(false);
       setStudyStartTime(new Date(data.started_at));
       setCurrentSessionId(data.id);
+      setCurrentSubjectName(courseName);
       setElapsedTime(0);
       setPausedElapsedTime(0);
-      toast.success("Studiesessie gestart");
+      setSubjectDialogOpen(false);
+      toast.success(`Studiesessie gestart: ${courseName}`);
     } catch (error: any) {
       console.error("Failed to start session:", error);
       toast.error(error?.message || "Kon studiesessie niet starten");
+    } finally {
+      setStartingSubject(null);
     }
   };
+
 
   const pauseStudySession = () => {
     if (!isStudying || isPaused) return;
@@ -467,6 +515,7 @@ export default function Studie() {
       setIsPaused(false);
       setStudyStartTime(null);
       setCurrentSessionId(null);
+      setCurrentSubjectName(null);
       setElapsedTime(0);
       setPausedElapsedTime(0);
       
@@ -1564,9 +1613,9 @@ export default function Studie() {
                 <p className="text-muted-foreground">
                   {isStudying 
                     ? isPaused 
-                      ? 'Gepauzeerd' 
-                      : 'Je bent aan het studeren' 
-                    : 'Start een studiesessie'}
+                      ? `Gepauzeerd${currentSubjectName ? ` · ${currentSubjectName}` : ''}` 
+                      : `Je bent aan het studeren${currentSubjectName ? ` · ${currentSubjectName}` : ''}` 
+                    : 'Kies een vak om te starten'}
                 </p>
                 <p className="text-sm text-primary font-medium mt-1">
                   Vandaag: {formatMinutes(myTodayStudyMinutes + (isStudying && !isPaused ? Math.floor(elapsedTime / 60) : 0))} gestudeerd
@@ -1613,13 +1662,31 @@ export default function Studie() {
                   </Button>
                 </div>
               ) : (
-                <Button
-                  size="lg"
-                  onClick={startStudySession}
-                  className="rounded-full w-14 h-14 p-0"
-                >
-                  <Play className="w-6 h-6 ml-1" />
-                </Button>
+                <Dialog open={subjectDialogOpen} onOpenChange={setSubjectDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="lg" className="rounded-full w-14 h-14 p-0">
+                      <Play className="w-6 h-6 ml-1" />
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                      <DialogTitle>Welk vak ga je studeren?</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid grid-cols-2 gap-2 pt-2">
+                      {COURSES.map((course) => (
+                        <Button
+                          key={course}
+                          variant="outline"
+                          disabled={startingSubject !== null}
+                          onClick={() => startStudySession(course)}
+                          className="justify-start rounded-full h-11"
+                        >
+                          {startingSubject === course ? "Starten..." : course}
+                        </Button>
+                      ))}
+                    </div>
+                  </DialogContent>
+                </Dialog>
               )}
             </div>
           </div>
