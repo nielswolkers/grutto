@@ -208,6 +208,9 @@ export default function Studie() {
   const [activeSessions, setActiveSessions] = useState<Map<string, StudySession>>(new Map());
   const [todayStudyTimes, setTodayStudyTimes] = useState<Map<string, number>>(new Map());
   const [myTodayStudyMinutes, setMyTodayStudyMinutes] = useState(0);
+  const [subjectDialogOpen, setSubjectDialogOpen] = useState(false);
+  const [currentSubjectName, setCurrentSubjectName] = useState<string | null>(null);
+  const [startingSubject, setStartingSubject] = useState<string | null>(null);
 
   // Confetti for first visit
   const [showConfetti, setShowConfetti] = useState(false);
