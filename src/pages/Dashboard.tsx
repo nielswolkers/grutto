@@ -212,7 +212,12 @@ export default function Dashboard() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <h3 className="text-lg font-semibold text-foreground">Je studievoortgang vandaag</h3>
-                <span className={`text-xs font-medium px-2 py-1 rounded-full ${progressLabel.className}`}>{progressLabel.text}</span>
+                <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full ${progressLabel.className}`}>
+                  {'dotClassName' in progressLabel && progressLabel.dotClassName && (
+                    <span className={`w-2 h-2 rounded-full animate-pulse ${progressLabel.dotClassName}`} />
+                  )}
+                  {progressLabel.text}
+                </span>
               </div>
               <div className="text-right">
                 <p className="text-sm text-muted-foreground mb-1">{formatStudyTime(todayStudyMinutes)} / {formatStudyTime(studyGoal)}</p>
