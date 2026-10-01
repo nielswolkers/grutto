@@ -92,7 +92,7 @@ export default function Dashboard() {
       
       const { data: sessions, error } = await supabase
         .from("study_sessions")
-        .select("duration_minutes, is_active, started_at")
+        .select("duration_minutes, is_active, is_paused, elapsed_seconds, last_resumed_at, started_at")
         .eq("user_id", user.id)
         .gte("started_at", dayStart)
         .lte("started_at", dayEnd);
@@ -105,14 +105,16 @@ export default function Dashboard() {
       let totalMinutes = 0;
       sessions?.forEach(session => {
         if (session.is_active) {
-          // For active sessions, calculate time from started_at until now
-          const startTime = new Date(session.started_at).getTime();
-          const activeMinutes = Math.floor((Date.now() - startTime) / 60000);
-          totalMinutes += Math.max(0, activeMinutes);
+          // Running session: banked time plus time since the last resume (paused time excluded)
+          const banked = session.elapsed_seconds ?? 0;
+          const resumedAt = new Date(session.last_resumed_at ?? session.started_at).getTime();
+          const liveSeconds = session.is_paused ? banked : banked + (Date.now() - resumedAt) / 1000;
+          totalMinutes += Math.max(0, Math.floor(liveSeconds / 60));
         } else {
           totalMinutes += session.duration_minutes || 0;
         }
       });
+      
       
       setTodayStudyMinutes(totalMinutes);
       const goalMinutes = profile?.study_goal_minutes || 120;
