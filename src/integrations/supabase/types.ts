@@ -940,6 +940,7 @@ export type Database = {
           created_at: string
           display_name: string | null
           full_name: string
+          grutto_plus: boolean
           id: string
           study_goal_minutes: number
           updated_at: string
@@ -953,6 +954,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           full_name: string
+          grutto_plus?: boolean
           id?: string
           study_goal_minutes?: number
           updated_at?: string
@@ -966,6 +968,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           full_name?: string
+          grutto_plus?: boolean
           id?: string
           study_goal_minutes?: number
           updated_at?: string

@@ -9,7 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { User, Mail, LogOut, Trash2, Camera, Clock, Image } from "lucide-react";
+import { User, Mail, LogOut, Trash2, Camera, Clock, Image, Sparkles } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { useGruttoPlus } from "@/contexts/GruttoPlusContext";
 import { getStoredAccessToken, logout as spotifyLogout, refreshAccessToken, redirectToSpotifyAuth } from "@/auth/spotifyAuth";
 import { getUserProfile } from "@/api/spotifyApi";
 import CalendarIntegrations from "@/components/account/CalendarIntegrations";
@@ -29,6 +31,7 @@ interface ProfileData {
 const Account = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const { enabled: plusEnabled, loading: plusLoading, setEnabled: setPlusEnabled } = useGruttoPlus();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -599,6 +602,26 @@ const Account = () => {
           <CardTitle className="text-xl font-semibold">Acties</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="flex items-center justify-between rounded-xl border border-border h-12 px-4">
+            <div className="flex items-center gap-3">
+              <Sparkles className="w-4 h-4" />
+              <span className="text-sm font-medium">Grutto Plus</span>
+            </div>
+            <Switch
+              checked={plusEnabled}
+              disabled={plusLoading}
+              onCheckedChange={async (value) => {
+                try {
+                  await setPlusEnabled(value);
+                  toast.success(value ? "Grutto Plus ingeschakeld" : "Grutto Plus uitgeschakeld");
+                } catch {
+                  toast.error("Kon instelling niet opslaan");
+                }
+              }}
+              aria-label="Grutto Plus"
+            />
+          </div>
+
           <Button variant="outline" onClick={handleSignOut} className="w-full justify-start rounded-xl h-12">
             <LogOut className="w-4 h-4 mr-3" />
             Uitloggen

@@ -30,6 +30,7 @@ import Auth from "./pages/Auth";
 import OAuthConsent from "./pages/OAuthConsent";
 import SearchResults from "./pages/SearchResults";
 import { useAuth } from "./hooks/useAuth";
+import { GruttoPlusProvider, useGruttoPlus } from "./contexts/GruttoPlusContext";
 
 const queryClient = new QueryClient();
 
@@ -51,6 +52,14 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** Blocks Grutto Plus pages when the setting is off. */
+function PlusRoute({ children }: { children: React.ReactNode }) {
+  const { enabled, loading } = useGruttoPlus();
+  if (loading) return null;
+  if (!enabled) return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -69,25 +78,25 @@ function AppRoutes() {
         <Route path="/agenda" element={<Agenda />} />
         <Route path="/studie" element={<Studie />} />
         <Route path="/cijfers" element={<PlaceholderPage />} />
-        <Route path="/taken" element={<Taken />} />
+        <Route path="/taken" element={<PlusRoute><Taken /></PlusRoute>} />
         <Route path="/materialen" element={<Materialen />} />
         <Route path="/bestanden" element={<Navigate to="/materialen" replace />} />
         <Route path="/materialen/folder/:folderId" element={<FolderView />} />
         <Route path="/materialen/preview/:fileId" element={<FilePreview />} />
         <Route path="/bestanden/folder/:folderId" element={<Navigate to="/materialen" replace />} />
         <Route path="/bestanden/preview/:fileId" element={<Navigate to="/materialen" replace />} />
-        <Route path="/notities" element={<Notities />} />
+        <Route path="/notities" element={<PlusRoute><Notities /></PlusRoute>} />
         <Route path="/ontdekken" element={<Navigate to="/communities" replace />} />
-        <Route path="/communities" element={<Ontdekken />} />
+        <Route path="/communities" element={<PlusRoute><Ontdekken /></PlusRoute>} />
         <Route path="/zoeken" element={<SearchResults />} />
         <Route path="/hashtag/:hashtag" element={<SearchResults />} />
         <Route path="/meldingen" element={<Meldingen />} />
         <Route path="/account" element={<Account />} />
         <Route path="/profiel/:username" element={<UserProfile />} />
         <Route path="/groep/:groupId" element={<GroupProfile />} />
-        <Route path="/community/:communityId" element={<CommunityPage />} />
+        <Route path="/community/:communityId" element={<PlusRoute><CommunityPage /></PlusRoute>} />
         <Route path="/instellingen" element={<Settings />} />
-        <Route path="/grutto-ai" element={<Scholar />} />
+        <Route path="/grutto-ai" element={<PlusRoute><Scholar /></PlusRoute>} />
         <Route path="/apps" element={<Navigate to="/grutto-ai" replace />} />
         <Route path="/apps/scholar" element={<Navigate to="/grutto-ai" replace />} />
         <Route path="/studieset/:setId" element={<StudySetView />} />
@@ -101,11 +110,13 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <SidebarProvider>
+        <GruttoPlusProvider>
         <Toaster />
         <Sonner />
         <BrowserRouter>
           <AppRoutes />
         </BrowserRouter>
+      </GruttoPlusProvider>
       </SidebarProvider>
     </TooltipProvider>
   </QueryClientProvider>

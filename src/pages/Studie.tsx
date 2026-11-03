@@ -1637,41 +1637,40 @@ export default function Studie() {
       </div>
 
       {/* Study Timer Card */}
-      <Card className="mb-8">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className={`w-16 h-16 rounded-full flex items-center justify-center ${isStudying ? 'bg-primary/10' : 'bg-muted'}`}>
-                <Clock className={`w-8 h-8 ${isStudying ? 'text-primary' : 'text-muted-foreground'}`} />
+      <Card className="mb-8 rounded-3xl overflow-hidden border-border">
+        <CardContent className={`p-8 transition-colors duration-500 ${isStudying ? (isPaused ? 'bg-muted/60' : 'bg-primary/5') : ''}`}>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
+                  isStudying
+                    ? isPaused ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
+                    : 'bg-muted text-muted-foreground'
+                }`}>
+                  <span className={`w-2 h-2 rounded-full ${
+                    isStudying ? (isPaused ? 'bg-orange-500 animate-pulse' : 'bg-green-500 animate-pulse') : 'bg-muted-foreground/40'
+                  }`} />
+                  {isStudying ? (isPaused ? 'Gepauzeerd' : 'Bezig') : 'Studietimer'}
+                </span>
+                {currentSubjectName && isStudying && (
+                  <span className="rounded-full border border-border bg-background px-3 py-1 text-xs font-medium">
+                    {currentSubjectName}
+                  </span>
+                )}
               </div>
-              <div>
-                <h2 className="text-2xl font-bold">Studietimer</h2>
-                <p className="text-muted-foreground">
-                  {isStudying 
-                    ? isPaused 
-                      ? `Gepauzeerd${currentSubjectName ? ` · ${currentSubjectName}` : ''}` 
-                      : `Je bent aan het studeren${currentSubjectName ? ` · ${currentSubjectName}` : ''}` 
-                    : 'Kies een vak om te starten'}
-                </p>
-                <p className="text-sm text-primary font-medium mt-1">
-                  Vandaag: {formatMinutes(myTodayStudyMinutes + (isStudying ? Math.floor(elapsedTime / 60) : 0))} gestudeerd
-                </p>
-              </div>
+              <p className={`text-6xl font-bold tracking-tight tabular-nums leading-none ${isPaused ? 'text-muted-foreground' : 'text-foreground'}`}>
+                {formatTime(elapsedTime)}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {isStudying ? 'Huidige sessie' : 'Kies een vak om te starten'}
+                <span className="mx-2">·</span>
+                <span className="text-foreground font-medium">
+                  Vandaag {formatMinutes(myTodayStudyMinutes + (isStudying ? Math.floor(elapsedTime / 60) : 0))}
+                </span>
+              </p>
             </div>
-            
-            <div className="flex items-center gap-6">
-              <div className="text-right">
-                <p className={`text-4xl font-mono font-bold tabular-nums ${isPaused ? 'text-muted-foreground' : ''}`}>
-                  {formatTime(elapsedTime)}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {isStudying 
-                    ? isPaused 
-                      ? 'Gepauzeerd' 
-                      : 'Huidige sessie' 
-                    : 'Verstreken tijd'}
-                </p>
-              </div>
+
+            <div className="flex items-center gap-3">
               
               {isStudying ? (
                 <div className="flex items-center gap-2">

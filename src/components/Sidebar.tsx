@@ -5,11 +5,13 @@ import gruttoIcon from '@/assets/grutto-icon.png';
 import { useState, useRef, useEffect } from 'react';
 import { useSidebarState } from '@/contexts/SidebarContext';
 import { NotificationBadge } from './NotificationBadge';
+import { useGruttoPlus } from '@/contexts/GruttoPlusContext';
 const EXPANDED_WIDTH = 256;
 const COLLAPSED_WIDTH = 72;
 
 export function Sidebar() {
   const { isCollapsed, setIsCollapsed } = useSidebarState();
+  const { enabled: plusEnabled } = useGruttoPlus();
   const [isDragging, setIsDragging] = useState(false);
   const [currentWidth, setCurrentWidth] = useState(isCollapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH);
   const sidebarRef = useRef<HTMLElement>(null);
@@ -193,6 +195,7 @@ export function Sidebar() {
             >Cijfers</span>
           </NavLink>
           
+          {plusEnabled && (
           <NavLink 
             to="/taken" 
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
@@ -207,6 +210,7 @@ export function Sidebar() {
               }}
             >Taken</span>
           </NavLink>
+          )}
           
           <NavLink 
             to="/materialen" 
@@ -223,6 +227,7 @@ export function Sidebar() {
             >Materialen</span>
           </NavLink>
           
+          {plusEnabled && (
           <NavLink 
             to="/notities" 
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
@@ -237,7 +242,9 @@ export function Sidebar() {
               }}
             >Notities</span>
           </NavLink>
+          )}
           
+          {plusEnabled && (
           <NavLink 
             to="/communities" 
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
@@ -249,7 +256,9 @@ export function Sidebar() {
               style={{ opacity: textOpacity, transition: isDragging ? 'none' : 'opacity 0.3s ease-out' }}
             >Communities</span>
           </NavLink>
+          )}
 
+          {plusEnabled && (
           <NavLink 
             to="/grutto-ai" 
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
@@ -261,6 +270,7 @@ export function Sidebar() {
               style={{ opacity: textOpacity, transition: isDragging ? 'none' : 'opacity 0.3s ease-out' }}
             >Grutto AI</span>
           </NavLink>
+          )}
         </div>
       </nav>
 

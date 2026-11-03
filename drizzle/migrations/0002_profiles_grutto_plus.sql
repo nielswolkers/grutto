@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS grutto_plus boolean NOT NULL DEFAULT false;
