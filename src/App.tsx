@@ -51,6 +51,14 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** Blocks Grutto Plus pages when the setting is off. */
+function PlusRoute({ children }: { children: React.ReactNode }) {
+  const { enabled, loading } = useGruttoPlus();
+  if (loading) return null;
+  if (!enabled) return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+}
+
 function AppRoutes() {
   return (
     <Routes>
