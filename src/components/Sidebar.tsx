@@ -180,6 +180,7 @@ export function Sidebar() {
             >Studie</span>
           </NavLink>
           
+          {plusEnabled && (
           <NavLink 
             to="/cijfers" 
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
@@ -194,6 +195,7 @@ export function Sidebar() {
               }}
             >Cijfers</span>
           </NavLink>
+          )}
           
           {plusEnabled && (
           <NavLink 

@@ -77,7 +77,7 @@ function AppRoutes() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/agenda" element={<Agenda />} />
         <Route path="/studie" element={<Studie />} />
-        <Route path="/cijfers" element={<PlaceholderPage />} />
+        <Route path="/cijfers" element={<PlusRoute><PlaceholderPage /></PlusRoute>} />
         <Route path="/taken" element={<PlusRoute><Taken /></PlusRoute>} />
         <Route path="/materialen" element={<Materialen />} />
         <Route path="/bestanden" element={<Navigate to="/materialen" replace />} />

@@ -12,11 +12,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Plus, Users, X, UserPlus, Play, Pause, Clock, ChevronLeft, Settings, Trash2, Camera, FolderOpen, Newspaper, Lock, Globe, Square } from "lucide-react";
 import { toast } from "sonner";
+import { UserPicker, PickedUser, rememberUsers } from "@/components/UserPicker";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { format, startOfDay, endOfDay } from "date-fns";
 import { GroupPosts } from "@/components/studie/GroupPosts";
-import { GroupMaterials } from "@/components/studie/GroupMaterials";
+import { MemberStatsGrid } from "@/components/studie/MemberStatsGrid";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { useVerifiedGroups } from "@/hooks/useVerifiedStatus";
 import { fireConfetti } from "@/components/ConfettiOverlay";
@@ -177,7 +178,7 @@ export default function Studie() {
 
   // Selected group for detail view
   const [selectedGroup, setSelectedGroup] = useState<StudyGroup | null>(null);
-  const [activeTab, setActiveTab] = useState("posts");
+  const [activeTab, setActiveTab] = useState("members");
   const { verifiedGroupIds } = useVerifiedGroups();
 
   // Group editing
@@ -195,6 +196,7 @@ export default function Studie() {
   // Invite dialog
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteSearchQuery, setInviteSearchQuery] = useState("");
+  const [invitePicked, setInvitePicked] = useState<PickedUser[]>([]);
   const [inviteSearchResults, setInviteSearchResults] = useState<Profile[]>([]);
   const [isInviting, setIsInviting] = useState(false);
 
@@ -744,33 +746,27 @@ export default function Studie() {
     return () => clearTimeout(debounce);
   }, [inviteSearchQuery]);
 
-  const inviteUserToGroup = async (profile: Profile) => {
-    if (!user || !selectedGroup) return;
-
+  const inviteUsersToGroup = async () => {
+    if (!user || !selectedGroup || invitePicked.length === 0) return;
     setIsInviting(true);
     try {
-      const { error: memberError } = await supabase
-        .from("group_members")
-        .insert({
-          group_id: selectedGroup.id,
-          user_id: profile.user_id,
-          invited_by: user.id,
-          status: "accepted",
-          request_type: "invite",
-        });
-
-      if (memberError) throw memberError;
-
-      await supabase.from("notifications").insert({
-        recipient_id: profile.user_id,
+      const { error } = await supabase.from("group_members").insert(invitePicked.map((u) => ({
+        group_id: selectedGroup!.id,
+        user_id: u.id,
+        invited_by: user.id,
+        status: "accepted",
+        request_type: "invite",
+      })));
+      if (error) throw error;
+      await supabase.from("notifications").insert(invitePicked.map((u) => ({
+        recipient_id: u.id,
         sender_id: user.id,
         type: "group_added",
-        message: `Je bent toegevoegd aan de studiegroep "${selectedGroup.name}"`,
-      });
-
-      toast.success(`${profile.display_name || profile.full_name} toegevoegd`);
-      setInviteSearchQuery("");
-      setInviteSearchResults([]);
+        message: `Je bent toegevoegd aan de studiegroep "${selectedGroup!.name}"`,
+      })));
+      rememberUsers(invitePicked);
+      toast.success(`${invitePicked.length} lid/leden toegevoegd`);
+      setInvitePicked([]);
       setInviteDialogOpen(false);
       loadGroups();
     } catch (error) {
@@ -848,6 +844,7 @@ export default function Studie() {
       }
 
       if (selectedUsers.length > 0) {
+        rememberUsers(selectedUsers.map((p) => ({ id: p.user_id, username: p.username, name: p.display_name || p.full_name })));
         const membersToInsert = selectedUsers.map(u => ({
           group_id: group.id,
           user_id: u.user_id,
@@ -1116,35 +1113,19 @@ export default function Studie() {
                   <DialogHeader>
                     <DialogTitle>Leden uitnodigen</DialogTitle>
                   </DialogHeader>
-                  <div className="space-y-4 pt-4">
-                    <Input
-                      value={inviteSearchQuery}
-                      onChange={(e) => setInviteSearchQuery(e.target.value)}
-                      placeholder="Zoek op gebruikersnaam of naam..."
+                  <div className="space-y-4 pt-2">
+                    <UserPicker
+                      selected={invitePicked}
+                      onChange={setInvitePicked}
+                      excludeIds={[selectedGroup?.owner_id, ...(selectedGroup?.members?.map((m: any) => m.user_id) || [])].filter(Boolean) as string[]}
                     />
-                    
-                    {inviteSearchResults.length > 0 && (
-                      <ScrollArea className="max-h-48 border rounded-lg">
-                        <div className="p-2 space-y-1">
-                          {inviteSearchResults.map((profile) => (
-                            <button
-                              key={profile.user_id}
-                              onClick={() => inviteUserToGroup(profile)}
-                              disabled={isInviting}
-                              className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-muted text-left"
-                            >
-                              <UserPlus className="w-4 h-4 text-muted-foreground" />
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm font-medium truncate">
-                                  {profile.display_name || profile.full_name}
-                                </p>
-                                <p className="text-xs text-muted-foreground">@{profile.username}</p>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    )}
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={() => setInviteDialogOpen(false)} className="flex-1">Annuleren</Button>
+                      <Button onClick={inviteUsersToGroup} disabled={invitePicked.length === 0 || isInviting} className="flex-1">
+                        <UserPlus className="w-4 h-4 mr-2" />
+                        {isInviting ? "Toevoegen..." : `Toevoegen (${invitePicked.length})`}
+                      </Button>
+                    </div>
                   </div>
                 </DialogContent>
               </Dialog>
@@ -1311,16 +1292,15 @@ export default function Studie() {
         <div className="flex items-center justify-between mb-6">
           <div className="flex bg-muted rounded-lg p-1 gap-0.5">
             {[
-              { value: 'posts', label: 'Posts', icon: Newspaper },
               // Only show Leden tab for private groups OR if user is admin in public groups
               ...((selectedGroup.is_public && !isOwner) ? [] : [{ value: 'members', label: 'Leden', icon: Users }]),
-              { value: 'materials', label: 'Materiaal', icon: FolderOpen },
+              { value: 'posts', label: 'Posts', icon: Newspaper },
             ].map((tab) => (
               <button 
                 key={tab.value} 
                 onClick={() => setActiveTab(tab.value)} 
                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
-                  activeTab === tab.value 
+                  currentTab === tab.value 
                     ? 'bg-background text-foreground shadow-sm' 
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
@@ -1374,75 +1354,16 @@ export default function Studie() {
         </div>
 
         {/* Tab Contents */}
-        {activeTab === 'posts' && (
+        {currentTab === 'posts' && (
           <GroupPosts groupId={selectedGroup.id} isPublicGroup={selectedGroup.is_public} isAdmin={isOwner} />
         )}
 
-        {activeTab === 'members' && (
+        {currentTab === 'members' && (
           <div className="space-y-4">
-            <OwnerMemberCard 
-              ownerId={selectedGroup.owner_id}
-              isStudying={selectedGroup.owner_id === user.id ? isStudying : activeSessions.has(selectedGroup.owner_id)}
-              elapsedTime={selectedGroup.owner_id === user.id ? elapsedTime : 0}
-              todayMinutes={selectedGroup.owner_id === user.id ? myTodayStudyMinutes : (todayStudyTimes.get(selectedGroup.owner_id) || 0)}
-              activeSession={activeSessions.get(selectedGroup.owner_id)}
-              formatTime={formatTime}
-              formatMinutes={formatMinutes}
-              navigateToProfile={navigateToProfile}
+            <MemberStatsGrid
+              userIds={[selectedGroup.owner_id, ...acceptedMembers.filter(m => m.user_id !== selectedGroup.owner_id).map(m => m.user_id)]}
+              onOpenProfile={navigateToProfile}
             />
-
-            {acceptedMembers.filter(m => m.user_id !== selectedGroup.owner_id).map((member) => {
-              const memberIsStudying = activeSessions.has(member.user_id);
-              const activeSession = activeSessions.get(member.user_id);
-              const todayTime = todayStudyTimes.get(member.user_id) || 0;
-              const currentSessionTime = activeSession 
-                ? Math.floor((Date.now() - new Date(activeSession.started_at).getTime()) / 60000)
-                : 0;
-              const totalTodayMinutes = todayTime + currentSessionTime;
-              const displayName = member.profile?.display_name || member.profile?.full_name || "Onbekend";
-
-              return (
-                <Card 
-                  key={member.id} 
-                  className="cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => member.profile?.username && navigateToProfile(member.profile.username)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-4">
-                      <Avatar className="w-15 h-15 bg-background" style={{ width: '3.75rem', height: '3.75rem' }}>
-                        {member.profile?.avatar_url && (
-                          <AvatarImage src={member.profile.avatar_url} className="object-cover" />
-                        )}
-                        <AvatarFallback className={`font-semibold bg-background ${memberIsStudying ? 'text-green-700' : ''}`}>
-                          {getInitials(displayName)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className={`font-medium ${memberIsStudying ? 'text-green-600' : ''}`}>
-                            {displayName}
-                          </p>
-                          {memberIsStudying && (
-                            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground">@{member.profile?.username}</p>
-                        {memberIsStudying && (
-                          <p className="text-sm text-green-600 mt-1">
-                            Aan het studeren • {formatMinutes(totalTodayMinutes)} vandaag
-                          </p>
-                        )}
-                        {!memberIsStudying && totalTodayMinutes > 0 && (
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {formatMinutes(totalTodayMinutes)} gestudeerd vandaag
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
 
             {pendingMembers.length > 0 && (
               <>
@@ -1475,13 +1396,6 @@ export default function Studie() {
           </div>
         )}
 
-        {activeTab === 'materials' && (
-          <Card>
-            <CardContent className="p-6">
-              <GroupMaterials groupId={selectedGroup.id} />
-            </CardContent>
-          </Card>
-        )}
       </div>
     );
   }
@@ -1560,52 +1474,10 @@ export default function Studie() {
 
               <div className="space-y-2">
                 <Label>Leden uitnodigen</Label>
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Zoek op gebruikersnaam of naam..."
+                <UserPicker
+                  selected={selectedUsers.map((p) => ({ id: p.user_id, username: p.username, name: p.display_name || p.full_name }))}
+                  onChange={(us) => setSelectedUsers(us.map((u) => ({ user_id: u.id, username: u.username, full_name: u.name, display_name: u.name })))}
                 />
-                
-                {searchResults.length > 0 && (
-                  <ScrollArea className="max-h-32 border rounded-lg">
-                    <div className="p-2 space-y-1">
-                      {searchResults.map((profile) => (
-                        <button
-                          key={profile.user_id}
-                          onClick={() => addUser(profile)}
-                          className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-muted text-left"
-                        >
-                          <UserPlus className="w-4 h-4 text-muted-foreground" />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium truncate">
-                              {profile.display_name || profile.full_name}
-                            </p>
-                            <p className="text-xs text-muted-foreground">@{profile.username}</p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                )}
-
-                {selectedUsers.length > 0 && (
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    {selectedUsers.map((profile) => (
-                      <div
-                        key={profile.user_id}
-                        className="flex items-center gap-1 px-2 py-1 rounded-full bg-primary/10 text-primary text-sm"
-                      >
-                        <span>{profile.display_name || profile.full_name}</span>
-                        <button
-                          onClick={() => removeUser(profile.user_id)}
-                          className="p-0.5 rounded-full hover:bg-primary/20"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
 
               <div className="flex gap-2 pt-4">

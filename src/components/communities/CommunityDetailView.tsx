@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
+import { UserPicker, PickedUser, rememberUsers } from "@/components/UserPicker";
 import { User } from "@supabase/supabase-js";
 import { useRef } from "react";
 
@@ -160,6 +161,7 @@ export function CommunityDetailView({ group, user, onBack, isGroupVerified }: Co
   
   // Invite
   const [inviteSearchQuery, setInviteSearchQuery] = useState("");
+  const [invitePicked, setInvitePicked] = useState<PickedUser[]>([]);
   const [inviteSearchResults, setInviteSearchResults] = useState<Profile[]>([]);
   const [isInviting, setIsInviting] = useState(false);
 
@@ -262,32 +264,31 @@ export function CommunityDetailView({ group, user, onBack, isGroupVerified }: Co
     return () => clearTimeout(debounce);
   }, [inviteSearchQuery]);
 
-  const inviteUserToGroup = async (profile: Profile) => {
-    if (!user) return;
-
+  const inviteUsersToGroup = async () => {
+    if (!user || !fullGroup || invitePicked.length === 0) return;
     setIsInviting(true);
     try {
-      await supabase.from("group_members").insert({
-        group_id: fullGroup.id,
-        user_id: profile.user_id,
+      const { error } = await supabase.from("group_members").insert(invitePicked.map((u) => ({
+        group_id: fullGroup!.id,
+        user_id: u.id,
         invited_by: user.id,
         status: "accepted",
         request_type: "invite",
-      });
-
-      await supabase.from("notifications").insert({
-        recipient_id: profile.user_id,
+      })));
+      if (error) throw error;
+      await supabase.from("notifications").insert(invitePicked.map((u) => ({
+        recipient_id: u.id,
         sender_id: user.id,
         type: "group_added",
-        message: `Je bent toegevoegd aan de community "${fullGroup.name}"`,
-      });
-
-      toast.success(`${profile.display_name || profile.full_name} toegevoegd`);
-      setInviteSearchQuery("");
-      setInviteSearchResults([]);
+        message: `Je bent toegevoegd aan de community "${fullGroup!.name}"`,
+      })));
+      rememberUsers(invitePicked);
+      toast.success(`${invitePicked.length} lid/leden toegevoegd`);
+      setInvitePicked([]);
       setInviteDialogOpen(false);
       loadFullGroup();
     } catch (error) {
+      console.error("Invite error:", error);
       toast.error("Kon gebruiker niet toevoegen");
     } finally {
       setIsInviting(false);
@@ -516,35 +517,19 @@ export function CommunityDetailView({ group, user, onBack, isGroupVerified }: Co
                   <DialogHeader>
                     <DialogTitle>Leden uitnodigen</DialogTitle>
                   </DialogHeader>
-                  <div className="space-y-4 pt-4">
-                    <Input
-                      value={inviteSearchQuery}
-                      onChange={(e) => setInviteSearchQuery(e.target.value)}
-                      placeholder="Zoek op gebruikersnaam of naam..."
+                  <div className="space-y-4 pt-2">
+                    <UserPicker
+                      selected={invitePicked}
+                      onChange={setInvitePicked}
+                      excludeIds={[fullGroup?.owner_id, ...(fullGroup?.members?.map((m: any) => m.user_id) || [])].filter(Boolean) as string[]}
                     />
-                    
-                    {inviteSearchResults.length > 0 && (
-                      <ScrollArea className="max-h-48 border rounded-lg">
-                        <div className="p-2 space-y-1">
-                          {inviteSearchResults.map((profile) => (
-                            <button
-                              key={profile.user_id}
-                              onClick={() => inviteUserToGroup(profile)}
-                              disabled={isInviting}
-                              className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-muted text-left"
-                            >
-                              <UserPlus className="w-4 h-4 text-muted-foreground" />
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm font-medium truncate">
-                                  {profile.display_name || profile.full_name}
-                                </p>
-                                <p className="text-xs text-muted-foreground">@{profile.username}</p>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    )}
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={() => setInviteDialogOpen(false)} className="flex-1">Annuleren</Button>
+                      <Button onClick={inviteUsersToGroup} disabled={invitePicked.length === 0 || isInviting} className="flex-1">
+                        <UserPlus className="w-4 h-4 mr-2" />
+                        {isInviting ? "Toevoegen..." : `Toevoegen (${invitePicked.length})`}
+                      </Button>
+                    </div>
                   </div>
                 </DialogContent>
               </Dialog>
