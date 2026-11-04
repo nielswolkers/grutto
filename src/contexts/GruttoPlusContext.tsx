@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
 /** Routes only available with Grutto Plus enabled. */
-export const PLUS_ROUTES = ['/communities', '/ontdekken', '/community', '/notities', '/taken', '/grutto-ai', '/apps'];
+export const PLUS_ROUTES = ['/communities', '/ontdekken', '/community', '/notities', '/taken', '/grutto-ai', '/apps', '/cijfers'];
 
 export function isPlusRoute(pathname: string) {
   return PLUS_ROUTES.some((r) => pathname === r || pathname.startsWith(r + '/'));
