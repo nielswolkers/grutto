@@ -844,6 +844,7 @@ export default function Studie() {
       }
 
       if (selectedUsers.length > 0) {
+        rememberUsers(selectedUsers.map((p) => ({ id: p.user_id, username: p.username, name: p.display_name || p.full_name })));
         const membersToInsert = selectedUsers.map(u => ({
           group_id: group.id,
           user_id: u.user_id,
