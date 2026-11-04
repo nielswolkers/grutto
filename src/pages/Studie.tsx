@@ -17,7 +17,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { format, startOfDay, endOfDay } from "date-fns";
 import { GroupPosts } from "@/components/studie/GroupPosts";
-import { GroupMaterials } from "@/components/studie/GroupMaterials";
+import { MemberStatsGrid } from "@/components/studie/MemberStatsGrid";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { useVerifiedGroups } from "@/hooks/useVerifiedStatus";
 import { fireConfetti } from "@/components/ConfettiOverlay";
@@ -178,7 +178,7 @@ export default function Studie() {
 
   // Selected group for detail view
   const [selectedGroup, setSelectedGroup] = useState<StudyGroup | null>(null);
-  const [activeTab, setActiveTab] = useState("posts");
+  const [activeTab, setActiveTab] = useState("members");
   const { verifiedGroupIds } = useVerifiedGroups();
 
   // Group editing
@@ -1292,16 +1292,15 @@ export default function Studie() {
         <div className="flex items-center justify-between mb-6">
           <div className="flex bg-muted rounded-lg p-1 gap-0.5">
             {[
-              { value: 'posts', label: 'Posts', icon: Newspaper },
               // Only show Leden tab for private groups OR if user is admin in public groups
               ...((selectedGroup.is_public && !isOwner) ? [] : [{ value: 'members', label: 'Leden', icon: Users }]),
-              { value: 'materials', label: 'Materiaal', icon: FolderOpen },
+              { value: 'posts', label: 'Posts', icon: Newspaper },
             ].map((tab) => (
               <button 
                 key={tab.value} 
                 onClick={() => setActiveTab(tab.value)} 
                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
-                  activeTab === tab.value 
+                  currentTab === tab.value 
                     ? 'bg-background text-foreground shadow-sm' 
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
@@ -1355,75 +1354,16 @@ export default function Studie() {
         </div>
 
         {/* Tab Contents */}
-        {activeTab === 'posts' && (
+        {currentTab === 'posts' && (
           <GroupPosts groupId={selectedGroup.id} isPublicGroup={selectedGroup.is_public} isAdmin={isOwner} />
         )}
 
-        {activeTab === 'members' && (
+        {currentTab === 'members' && (
           <div className="space-y-4">
-            <OwnerMemberCard 
-              ownerId={selectedGroup.owner_id}
-              isStudying={selectedGroup.owner_id === user.id ? isStudying : activeSessions.has(selectedGroup.owner_id)}
-              elapsedTime={selectedGroup.owner_id === user.id ? elapsedTime : 0}
-              todayMinutes={selectedGroup.owner_id === user.id ? myTodayStudyMinutes : (todayStudyTimes.get(selectedGroup.owner_id) || 0)}
-              activeSession={activeSessions.get(selectedGroup.owner_id)}
-              formatTime={formatTime}
-              formatMinutes={formatMinutes}
-              navigateToProfile={navigateToProfile}
+            <MemberStatsGrid
+              userIds={[selectedGroup.owner_id, ...acceptedMembers.filter(m => m.user_id !== selectedGroup.owner_id).map(m => m.user_id)]}
+              onOpenProfile={navigateToProfile}
             />
-
-            {acceptedMembers.filter(m => m.user_id !== selectedGroup.owner_id).map((member) => {
-              const memberIsStudying = activeSessions.has(member.user_id);
-              const activeSession = activeSessions.get(member.user_id);
-              const todayTime = todayStudyTimes.get(member.user_id) || 0;
-              const currentSessionTime = activeSession 
-                ? Math.floor((Date.now() - new Date(activeSession.started_at).getTime()) / 60000)
-                : 0;
-              const totalTodayMinutes = todayTime + currentSessionTime;
-              const displayName = member.profile?.display_name || member.profile?.full_name || "Onbekend";
-
-              return (
-                <Card 
-                  key={member.id} 
-                  className="cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => member.profile?.username && navigateToProfile(member.profile.username)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-4">
-                      <Avatar className="w-15 h-15 bg-background" style={{ width: '3.75rem', height: '3.75rem' }}>
-                        {member.profile?.avatar_url && (
-                          <AvatarImage src={member.profile.avatar_url} className="object-cover" />
-                        )}
-                        <AvatarFallback className={`font-semibold bg-background ${memberIsStudying ? 'text-green-700' : ''}`}>
-                          {getInitials(displayName)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className={`font-medium ${memberIsStudying ? 'text-green-600' : ''}`}>
-                            {displayName}
-                          </p>
-                          {memberIsStudying && (
-                            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground">@{member.profile?.username}</p>
-                        {memberIsStudying && (
-                          <p className="text-sm text-green-600 mt-1">
-                            Aan het studeren • {formatMinutes(totalTodayMinutes)} vandaag
-                          </p>
-                        )}
-                        {!memberIsStudying && totalTodayMinutes > 0 && (
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {formatMinutes(totalTodayMinutes)} gestudeerd vandaag
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
 
             {pendingMembers.length > 0 && (
               <>
@@ -1456,13 +1396,6 @@ export default function Studie() {
           </div>
         )}
 
-        {activeTab === 'materials' && (
-          <Card>
-            <CardContent className="p-6">
-              <GroupMaterials groupId={selectedGroup.id} />
-            </CardContent>
-          </Card>
-        )}
       </div>
     );
   }
