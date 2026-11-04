@@ -1048,6 +1048,7 @@ export default function Studie() {
   // Show group detail view
   if (selectedGroup) {
     const isOwner = selectedGroup.owner_id === user.id;
+    const currentTab = (selectedGroup.is_public && !isOwner && activeTab === "members") ? "posts" : activeTab;
     const acceptedMembers = selectedGroup.members?.filter(m => m.status === "accepted") || [];
     const pendingMembers = selectedGroup.members?.filter(m => m.status === "pending") || [];
 
