@@ -48,6 +48,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
+import { UserPicker, PickedUser, rememberUsers } from "@/components/UserPicker";
 import { fireConfetti } from "@/components/ConfettiOverlay";
 
 interface StudyGroup {
@@ -113,6 +114,7 @@ export default function CommunityPage() {
   const [inviteSearchQuery, setInviteSearchQuery] = useState("");
   const [inviteSearchResults, setInviteSearchResults] = useState<Profile[]>([]);
   const [isInviting, setIsInviting] = useState(false);
+  const [invitePicked, setInvitePicked] = useState<PickedUser[]>([]);
 
   useEffect(() => {
     if (communityId) {
@@ -264,29 +266,21 @@ export default function CommunityPage() {
     return () => clearTimeout(debounce);
   }, [inviteSearchQuery]);
 
-  const inviteUserToGroup = async (profile: Profile) => {
-    if (!user || !group) return;
-
+  const inviteUsersToGroup = async () => {
+    if (!user || !group || invitePicked.length === 0) return;
     setIsInviting(true);
     try {
-      await supabase.from("group_members").insert({
-        group_id: group.id,
-        user_id: profile.user_id,
-        invited_by: user.id,
-        status: "accepted",
-        request_type: "invite",
-      });
-
-      await supabase.from("notifications").insert({
-        recipient_id: profile.user_id,
-        sender_id: user.id,
-        type: "group_added",
+      const { error } = await supabase.from("group_members").insert(invitePicked.map((u) => ({
+        group_id: group.id, user_id: u.id, invited_by: user.id, status: "accepted", request_type: "invite",
+      })));
+      if (error) throw error;
+      await supabase.from("notifications").insert(invitePicked.map((u) => ({
+        recipient_id: u.id, sender_id: user.id, type: "group_added",
         message: `Je bent toegevoegd aan de community "${group.name}"`,
-      });
-
-      toast.success(`${profile.display_name || profile.full_name} toegevoegd`);
-      setInviteSearchQuery("");
-      setInviteSearchResults([]);
+      })));
+      rememberUsers(invitePicked);
+      toast.success(`${invitePicked.length} lid/leden toegevoegd`);
+      setInvitePicked([]);
       setInviteDialogOpen(false);
       loadCommunity();
     } catch (error) {
@@ -295,6 +289,7 @@ export default function CommunityPage() {
       setIsInviting(false);
     }
   };
+
 
   const handleEditGroupAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -537,33 +532,18 @@ export default function CommunityPage() {
                   <DialogTitle>Lid toevoegen</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <Input
-                    placeholder="Zoek op naam of gebruikersnaam..."
-                    value={inviteSearchQuery}
-                    onChange={(e) => setInviteSearchQuery(e.target.value)}
+                  <UserPicker
+                    selected={invitePicked}
+                    onChange={setInvitePicked}
+                    excludeIds={[group.owner_id, ...((group as any).members?.map((m: any) => m.user_id) || [])]}
                   />
-                  <ScrollArea className="h-48">
-                    <div className="space-y-2">
-                      {inviteSearchResults.map((profile) => (
-                        <div
-                          key={profile.user_id}
-                          className="flex items-center justify-between p-2 rounded-lg hover:bg-muted"
-                        >
-                          <span className="text-sm font-medium">
-                            {profile.display_name || profile.full_name}
-                          </span>
-                          <Button
-                            size="sm"
-                            onClick={() => inviteUserToGroup(profile)}
-                            disabled={isInviting}
-                            className="rounded-full"
-                          >
-                            Toevoegen
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setInviteDialogOpen(false)} className="flex-1">Annuleren</Button>
+                    <Button onClick={inviteUsersToGroup} disabled={invitePicked.length === 0 || isInviting} className="flex-1">
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      {isInviting ? "Toevoegen..." : `Toevoegen (${invitePicked.length})`}
+                    </Button>
+                  </div>
                 </div>
               </DialogContent>
             </Dialog>
