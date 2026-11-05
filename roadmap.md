@@ -1,0 +1,5 @@
+- [ ] Search all calendars for upcoming tests, sorted by date.
+- [ ] Default studiesets to the unfiltered overview.
+- [ ] Link shared-item notifications and calendar invitation details.
+- [ ] Return back arrows to the previous page/activity.
+- [ ] Verify rules and affected flows.
