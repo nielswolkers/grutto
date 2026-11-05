@@ -1,0 +1,3 @@
+- Upcoming-test classification lives in a pure helper; imported calendars are loaded independently of Agenda's visible date range so Home includes every source.
+- Item detail back controls use browser history with an in-app fallback; internal activity views preserve their parent state.
+- Share notification destinations are resolved centrally, including existing studieset URLs stored in notification messages.

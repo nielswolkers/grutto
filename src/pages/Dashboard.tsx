@@ -9,6 +9,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { BookOpen, FileText, GraduationCap } from 'lucide-react';
+import { selectUpcomingTests } from '@/lib/upcomingTests';
+import { loadImportedCalendarTests } from '@/lib/importedCalendars';
 
 type TimeFilter = 'dag' | 'week' | 'maand';
 
@@ -128,8 +130,14 @@ export default function Dashboard() {
     if (!user) return;
     setLoadingTests(true);
     try {
-      const { data } = await supabase.from("calendar_events").select("id, title, start_time, event_type, color").eq("user_id", user.id).in("event_type", ["proefwerk", "schoolexamen", "project", "toets"]).gte("start_time", new Date().toISOString()).order("start_time", { ascending: true }).limit(3);
-      setUpcomingTests(data || []);
+      const [local, imported] = await Promise.all([
+        supabase.from('calendar_events').select('id, title, start_time, event_type, color').eq('user_id', user.id).order('start_time'),
+        loadImportedCalendarTests(user.id),
+      ]);
+      if (local.error) throw local.error;
+      setUpcomingTests(selectUpcomingTests([...(local.data || []), ...imported]));
+    } catch (error) {
+      console.error('Kon aankomende toetsen niet laden:', error);
     } finally {
       setLoadingTests(false);
     }
