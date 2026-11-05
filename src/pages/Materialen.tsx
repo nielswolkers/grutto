@@ -161,9 +161,6 @@ const Materialen = () => {
       .order("sort_order");
     if (error) { console.error(error); return; }
     setSubjects(data || []);
-    if (data && data.length > 0 && !selectedSubjectId) {
-      setSelectedSubjectId(data[0].id);
-    }
   };
 
   const loadLessons = async (subjectId: string) => {
