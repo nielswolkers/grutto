@@ -126,3 +126,18 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Study mode animations (ported from flip-flash-study-club) */
+@layer utilities {
+  .perspective { perspective: 1400px; }
+  .preserve-3d { transform-style: preserve-3d; }
+  .backface-hidden { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+  .rotate-y-180 { transform: rotateY(180deg); }
+  .animate-shake { animation: study-shake .4s ease; }
+  .animate-pop { animation: study-pop .3s ease; }
+  .animate-rise { animation: study-rise .35s ease both; }
+}
+@keyframes study-shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)} }
+@keyframes study-pop { 0%{transform:scale(1)} 50%{transform:scale(1.06)} 100%{transform:scale(1)} }
+@keyframes study-rise { from{opacity:0; transform:translateY(12px)} to{opacity:1; transform:none} }
+@keyframes study-confetti { to { transform: translateY(110vh) rotate(720deg); } }
