@@ -29,7 +29,7 @@ export default function StudySetView() {
   if (!exists) return (
     <div className="p-12 text-center">
       <p className="text-muted-foreground mb-4">Studieset niet gevonden.</p>
-      <Button onClick={() => navigate("/materialen")}><ArrowLeft className="w-4 h-4 mr-2" /> Terug</Button>
+      <Button onClick={() => navigate("/studiesets")}><ArrowLeft className="w-4 h-4 mr-2" /> Terug</Button>
     </div>
   );
 
@@ -38,7 +38,7 @@ export default function StudySetView() {
       <StudySetDetail
         setId={setId!}
         subjects={subjects}
-        onBack={() => navigate("/materialen")}
+        onBack={() => navigate("/studiesets")}
       />
     </div>
   );

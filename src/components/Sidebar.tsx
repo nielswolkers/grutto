@@ -1,4 +1,4 @@
-import { Home, Calendar, BarChart3, CheckSquare, FileText, Bell, User, BookOpen, Compass, GraduationCap, Sparkles } from 'lucide-react';
+import { Home, Calendar, BarChart3, CheckSquare, FileText, Bell, User, BookOpen, Compass, GraduationCap, Sparkles, Layers } from 'lucide-react';
 import { NavLink } from './NavLink';
 import gruttoLogo from '@/assets/grutto-logo.png';
 import gruttoIcon from '@/assets/grutto-icon.png';
