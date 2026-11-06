@@ -1,0 +1,14 @@
+DROP POLICY IF EXISTS "Anyone can view group admins" ON public.group_admins;
+CREATE POLICY "Signed-in users can view group admins" ON public.group_admins FOR SELECT TO authenticated USING (auth.uid() IS NOT NULL);
+DROP POLICY IF EXISTS "Authenticated users can view follows" ON public.follows;
+CREATE POLICY "Authenticated users can view follows" ON public.follows FOR SELECT TO authenticated USING (auth.uid() IS NOT NULL);
+DROP POLICY IF EXISTS "Authenticated users can view publications" ON public.publications;
+CREATE POLICY "Authenticated users can view publications" ON public.publications FOR SELECT TO authenticated USING (auth.uid() IS NOT NULL);
+DROP POLICY IF EXISTS "Authenticated users can view comments" ON public.publication_comments;
+CREATE POLICY "Authenticated users can view comments" ON public.publication_comments FOR SELECT TO authenticated USING (auth.uid() IS NOT NULL);
+DROP POLICY IF EXISTS "Anyone authenticated can view cards" ON public.study_cards;
+CREATE POLICY "Anyone authenticated can view cards" ON public.study_cards FOR SELECT TO authenticated USING (auth.uid() IS NOT NULL);
+DROP POLICY IF EXISTS "Users can search other profiles" ON public.profiles;
+CREATE POLICY "Users can search other profiles" ON public.profiles FOR SELECT TO authenticated USING (auth.uid() IS NOT NULL);
+DROP POLICY IF EXISTS "Anyone authenticated can view study sets" ON public.study_sets;
+CREATE POLICY "Anyone authenticated can view study sets" ON public.study_sets FOR SELECT TO authenticated USING (auth.uid() IS NOT NULL);
