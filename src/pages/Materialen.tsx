@@ -78,7 +78,7 @@ interface StudyGroup {
 const Materialen = ({ section }: { section: "recent" | "bestanden" }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const activeTab: "recent" | "bestanden" | "studiegroep" = section;
+  const activeTab = section as "recent" | "bestanden" | "studiegroep";
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
