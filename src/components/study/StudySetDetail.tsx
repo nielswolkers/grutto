@@ -12,9 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, BookOpen, GraduationCap, Zap, Grid3X3, Pencil, Trash2, ArrowRight, RotateCcw, Plus, Save, Share2, Bookmark, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import FlashCard from "./FlashCard";
-import QuizMode from "./QuizMode";
-import LearnMode from "./LearnMode";
+import { Kaarten, Leren, Oefentoets } from "./StudyModes";
 import MatchMode from "./MatchMode";
 import StudySetShareDialog from "./StudySetShareDialog";
 import { useAuth } from "@/hooks/useAuth";
@@ -323,7 +321,7 @@ export default function StudySetDetail({ setId, onBack, subjects = [] }: Props) 
         )}
         <div className="flex gap-2 justify-center">
           <Button onClick={() => setViewMode("detail")} variant="outline" className="rounded-full">Terug</Button>
-          <Button onClick={() => { setCardIndex(0); setViewMode(matchTime > 0 ? "match" : "quiz"); }} className="rounded-full gap-2">
+          <Button onClick={() => { setCardIndex(0); setViewMode("match"); }} className="rounded-full gap-2">
             <RotateCcw className="w-4 h-4" /> Opnieuw
           </Button>
         </div>
@@ -343,37 +341,24 @@ export default function StudySetDetail({ setId, onBack, subjects = [] }: Props) 
     );
   }
 
-  // Flashcards view
-  if (viewMode === "flashcards") {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <Button variant="ghost" size="sm" onClick={() => setViewMode("detail")} className="rounded-full gap-2">
-            <ArrowLeft className="w-4 h-4" /> Terug
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleShuffle} className="rounded-full gap-2">
-            <RotateCcw className="w-4 h-4" /> Shuffle
-          </Button>
-        </div>
-        <FlashCard card={cards[cardIndex]} index={cardIndex} total={cards.length}
-          onPrev={() => setCardIndex(c => Math.max(0, c - 1))}
-          onNext={() => setCardIndex(c => Math.min(cards.length - 1, c + 1))} />
-        <div className="flex justify-center gap-4">
-          <Button variant="outline" disabled={cardIndex === 0} onClick={() => setCardIndex(c => c - 1)} className="rounded-full"><ArrowLeft className="w-4 h-4" /></Button>
-          <Button variant="outline" disabled={cardIndex === cards.length - 1} onClick={() => setCardIndex(c => c + 1)} className="rounded-full"><ArrowRight className="w-4 h-4" /></Button>
-        </div>
-      </div>
-    );
-  }
-
+  // Study modes: white top bar with back button + title (no emoji)
+  const exitMode = () => setViewMode("detail");
   return (
-    <div className="space-y-6">
-      <Button variant="ghost" size="sm" onClick={() => setViewMode("detail")} className="rounded-full gap-2">
-        <ArrowLeft className="w-4 h-4" /> Terug
-      </Button>
-      {viewMode === "quiz" && <QuizMode cards={cards} onFinish={(s, t, w) => { setResultScore(s); setResultTotal(t); setResultWrong(w); setViewMode("result"); }} />}
-      {viewMode === "learn" && <LearnMode cards={cards} onFinish={(s, t, w) => { setResultScore(s); setResultTotal(t); setResultWrong(w); setViewMode("result"); }} />}
-      {viewMode === "match" && <MatchMode cards={cards} onFinish={(time, mis) => { setMatchTime(time); setMatchMistakes(mis); setResultScore(0); setResultTotal(0); setViewMode("result"); }} />}
+    <div>
+      <div className="sticky top-0 z-30 -mx-8 -mt-8 mb-8 flex items-center gap-3 border-b bg-card px-8 py-3">
+        <Button variant="ghost" size="icon" onClick={exitMode} className="rounded-full" aria-label="Terug">
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <h2 className="truncate text-lg font-semibold">{set.title}</h2>
+      </div>
+      <div className="mx-auto max-w-4xl">
+        {cards.length < 2 ? <p className="text-muted-foreground">Voeg minstens 2 kaarten toe om te oefenen.</p>
+          : viewMode === "flashcards" ? <Kaarten key={setId} cards={cards} onBack={exitMode} />
+          : viewMode === "learn" ? <Leren key={setId} cards={cards} onBack={exitMode} />
+          : viewMode === "quiz" ? <Oefentoets key={setId} cards={cards} />
+          : viewMode === "match" ? <MatchMode cards={cards} onFinish={(time, mis) => { setMatchTime(time); setMatchMistakes(mis); setResultScore(0); setResultTotal(0); setViewMode("result"); }} />
+          : null}
+      </div>
     </div>
   );
 }

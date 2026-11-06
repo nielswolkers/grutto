@@ -79,8 +79,9 @@ function AppRoutes() {
         <Route path="/studie" element={<Studie />} />
         <Route path="/cijfers" element={<PlusRoute><PlaceholderPage /></PlusRoute>} />
         <Route path="/taken" element={<PlusRoute><Taken /></PlusRoute>} />
-        <Route path="/materialen" element={<Materialen />} />
-        <Route path="/bestanden" element={<Navigate to="/materialen" replace />} />
+        <Route path="/studiesets" element={<Materialen section="recent" />} />
+        <Route path="/bestanden" element={<Materialen section="bestanden" />} />
+        <Route path="/materialen" element={<Navigate to="/bestanden" replace />} />
         <Route path="/materialen/folder/:folderId" element={<FolderView />} />
         <Route path="/materialen/preview/:fileId" element={<FilePreview />} />
         <Route path="/bestanden/folder/:folderId" element={<Navigate to="/materialen" replace />} />

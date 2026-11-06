@@ -75,10 +75,10 @@ interface StudyGroup {
   member_count?: number;
 }
 
-const Materialen = () => {
+const Materialen = ({ section }: { section: "recent" | "bestanden" }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"recent" | "bestanden" | "studiegroep">("recent");
+  const activeTab: "recent" | "bestanden" | "studiegroep" = section;
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -335,38 +335,6 @@ const Materialen = () => {
     <div className="w-full">
       {/* Toggle + Search */}
       <div className="flex justify-center items-center gap-3 mb-8">
-        {/* Toggle - hidden when search expanded */}
-        <div
-          className="inline-flex bg-muted rounded-full p-1 border relative overflow-hidden transition-all duration-300 ease-out"
-          style={{
-            minWidth: searchExpanded ? "0px" : "450px",
-            maxWidth: searchExpanded ? "0px" : "450px",
-            opacity: searchExpanded ? 0 : 1,
-            padding: searchExpanded ? "0" : undefined,
-          }}
-        >
-          <div
-            className="absolute top-1 bottom-1 rounded-full bg-background shadow-sm transition-all duration-300 ease-out"
-            style={{
-              width: "calc(33.333% - 3px)",
-              left: `calc(${activeTabIndex} * 33.333% + 2px)`,
-            }}
-          />
-          {MAIN_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex-1 px-6 py-2.5 rounded-full text-sm font-medium transition-colors relative z-10 ${
-                activeTab === tab.key
-                  ? "text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
         {/* Search button / expanded search bar */}
         <div
           className={`flex items-center transition-all duration-300 ease-out ${
