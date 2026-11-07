@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, ChevronDown, Plus, Clock, Users, BookOpen, Pencil, Sparkles } from "lucide-react";
+import { ChevronDown, Plus, Clock, Users, BookOpen, Pencil, Sparkles } from "lucide-react";
 import { getLibrarySets } from "@/lib/studySets";
 import { StudySet } from "@/types/study";
 import StudySetDetail from "@/components/study/StudySetDetail";
@@ -79,9 +79,7 @@ const Materialen = ({ section }: { section: "recent" | "bestanden" }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const activeTab = section as "recent" | "bestanden" | "studiegroep";
-  const [searchExpanded, setSearchExpanded] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchQuery = "";
   const activeTabIndex = MAIN_TABS.findIndex(t => t.key === activeTab);
 
   // Recent tab state
@@ -126,12 +124,6 @@ const Materialen = ({ section }: { section: "recent" | "bestanden" }) => {
   // Studiegroep tab state
   const [studyGroups, setStudyGroups] = useState<StudyGroup[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(false);
-
-  useEffect(() => {
-    if (searchExpanded && searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
-  }, [searchExpanded]);
 
   useEffect(() => {
     if (user) {
@@ -333,54 +325,6 @@ const Materialen = ({ section }: { section: "recent" | "bestanden" }) => {
 
   return (
     <div className="w-full">
-      {/* Toggle + Search */}
-      <div className="flex justify-center items-center gap-3 mb-8">
-        {/* Search button / expanded search bar */}
-        <div
-          className={`flex items-center transition-all duration-300 ease-out ${
-            searchExpanded
-              ? "bg-muted rounded-full border px-4"
-              : ""
-          }`}
-          style={{
-            width: searchExpanded ? "500px" : "46px",
-            height: "46px",
-          }}
-        >
-          {searchExpanded && (
-            <Search className="w-5 h-5 text-muted-foreground flex-shrink-0 mr-2" />
-          )}
-          {searchExpanded ? (
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder="Zoeken..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onBlur={() => {
-                if (!searchQuery) setSearchExpanded(false);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  setSearchQuery("");
-                  setSearchExpanded(false);
-                }
-              }}
-              className="flex-1 bg-transparent border-none outline-none text-sm h-full"
-            />
-          ) : (
-            <Button
-              variant="outline"
-              size="icon"
-              className="rounded-full h-[46px] w-[46px] bg-muted border hover:bg-muted/80"
-              onClick={() => setSearchExpanded(true)}
-            >
-              <Search className="w-5 h-5" />
-            </Button>
-          )}
-        </div>
-      </div>
-
       {/* ===== RECENT TAB ===== */}
       {activeTab === "recent" && selectedStudySetId && (
         <StudySetDetail

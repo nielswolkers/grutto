@@ -3,3 +3,7 @@
 - [ ] Link shared-item notifications and calendar invitation details.
 - [ ] Return back arrows to the previous page/activity.
 - [ ] Verify rules and affected flows.
+- [ ] Remove search from Bestanden/Studiesets and position the study title bar at page top.
+- [ ] Show full sender names and clickable shared items/calendar invitation details.
+- [ ] Add secure username/email sign-in and email password recovery, preserving profiles.
+- [ ] Verify the newly requested flows.

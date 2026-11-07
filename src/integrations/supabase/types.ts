@@ -726,6 +726,24 @@ export type Database = {
           },
         ]
       }
+      login_rate_limits: {
+        Row: {
+          attempts: number
+          key: string
+          window_started_at: string
+        }
+        Insert: {
+          attempts?: number
+          key: string
+          window_started_at?: string
+        }
+        Update: {
+          attempts?: number
+          key?: string
+          window_started_at?: string
+        }
+        Relationships: []
+      }
       notes: {
         Row: {
           content: string
@@ -1490,6 +1508,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      consume_login_attempt: { Args: { bucket_key: string }; Returns: boolean }
       is_group_member: {
         Args: { _group_id: string; _user_id: string }
         Returns: boolean
