@@ -26,7 +26,7 @@ export default function StudySetView() {
 
   if (loading || exists === null) return <div className="p-12 flex justify-center"><Loader2 className="animate-spin" /></div>;
   if (!user) { navigate("/auth"); return null; }
-  if (!exists) return (
+  if (!exists || !setId) return (
     <div className="p-12 text-center">
       <p className="text-muted-foreground mb-4">Studieset niet gevonden.</p>
       <Button onClick={() => navigate("/studiesets")}><ArrowLeft className="w-4 h-4 mr-2" /> Terug</Button>
@@ -34,9 +34,9 @@ export default function StudySetView() {
   );
 
   return (
-    <div className="max-w-5xl mx-auto p-6">
+    <div className="w-full">
       <StudySetDetail
-        setId={setId!}
+        setId={setId}
         subjects={subjects}
         onBack={() => navigate("/studiesets")}
       />

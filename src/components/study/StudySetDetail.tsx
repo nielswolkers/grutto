@@ -345,7 +345,7 @@ export default function StudySetDetail({ setId, onBack, subjects = [] }: Props) 
   const exitMode = () => setViewMode("detail");
   return (
     <div>
-      <div className="sticky top-0 z-30 -mx-8 -mt-8 mb-8 flex items-center gap-3 border-b bg-card px-8 py-3">
+      <div className="sticky top-0 z-30 -mx-8 -mt-8 mb-8 flex items-center gap-3 border-b bg-card px-8 py-3" data-study-title-bar>
         <Button variant="ghost" size="icon" onClick={exitMode} className="rounded-full" aria-label="Terug">
           <ArrowLeft className="w-5 h-5" />
         </Button>
