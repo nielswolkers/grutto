@@ -27,6 +27,7 @@ import Callback from "./pages/Callback";
 import GoogleCallback from "./pages/GoogleCallback";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
+import ResetPassword from "./pages/ResetPassword";
 import OAuthConsent from "./pages/OAuthConsent";
 import SearchResults from "./pages/SearchResults";
 import { useAuth } from "./hooks/useAuth";
@@ -65,6 +66,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/auth" element={<Auth />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
       <Route path="/callback" element={<Callback />} />
       <Route path="/callback/google" element={<GoogleCallback />} />
