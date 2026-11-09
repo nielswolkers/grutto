@@ -52,6 +52,10 @@ guard let data = bitmap.representation(using: .png, properties: [:]) else {
 try data.write(to: URL(fileURLWithPath: output))
 SWIFT
 
+# Tauri also reads icon.png directly from tauri.conf.json, so replace that
+# exact input with the normalized RGBA file before the Tauri build starts.
+cp "$RGBA_SOURCE" "$SOURCE"
+
 rm -rf "$ICONSET"
 mkdir -p "$ICONSET"
 
