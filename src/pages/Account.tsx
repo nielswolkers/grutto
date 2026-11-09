@@ -15,6 +15,7 @@ import { useGruttoPlus } from "@/contexts/GruttoPlusContext";
 import { getStoredAccessToken, logout as spotifyLogout, refreshAccessToken, redirectToSpotifyAuth } from "@/auth/spotifyAuth";
 import { getUserProfile } from "@/api/spotifyApi";
 import CalendarIntegrations from "@/components/account/CalendarIntegrations";
+import MagisterIntegration from "@/components/magister/MagisterIntegration";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Slider } from "@/components/ui/slider";
 
@@ -592,6 +593,7 @@ const Account = () => {
             )}
           </div>
 
+          <MagisterIntegration />
           <CalendarIntegrations />
         </CardContent>
       </Card>
