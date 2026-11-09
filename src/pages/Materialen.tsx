@@ -436,8 +436,8 @@ const Materialen = ({ section }: { section: "recent" | "bestanden" }) => {
           {/* Study set cards, filtered by selected vak & sorted */}
           {(() => {
             const filtered = studySets
-              .filter(s => !selectedSubjectId || s.subjectId === selectedSubjectId)
-              .filter(s => !searchQuery || s.title.toLowerCase().includes(searchQuery.toLowerCase()))
+              .filter((s: any) => !selectedSubjectId || s.subjectId === selectedSubjectId)
+              .filter((s: any) => !searchQuery || s.title.toLowerCase().includes(searchQuery.toLowerCase()))
               .sort((a, b) =>
                 sortBy === "name"
                   ? a.title.localeCompare(b.title)

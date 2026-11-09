@@ -744,6 +744,72 @@ export type Database = {
         }
         Relationships: []
       }
+      magister_connections: {
+        Row: {
+          connected_at: string
+          last_synced_at: string | null
+          refresh_token: string | null
+          selected_year_ids: number[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          connected_at?: string
+          last_synced_at?: string | null
+          refresh_token?: string | null
+          selected_year_ids?: number[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          connected_at?: string
+          last_synced_at?: string | null
+          refresh_token?: string | null
+          selected_year_ids?: number[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      magister_years: {
+        Row: {
+          attendance: Json
+          begin_date: string | null
+          course_averages: Json
+          end_date: string | null
+          grades: Json
+          id: string
+          label: string
+          synced_at: string
+          user_id: string
+          year_id: number
+        }
+        Insert: {
+          attendance?: Json
+          begin_date?: string | null
+          course_averages?: Json
+          end_date?: string | null
+          grades?: Json
+          id?: string
+          label: string
+          synced_at?: string
+          user_id: string
+          year_id: number
+        }
+        Update: {
+          attendance?: Json
+          begin_date?: string | null
+          course_averages?: Json
+          end_date?: string | null
+          grades?: Json
+          id?: string
+          label?: string
+          synced_at?: string
+          user_id?: string
+          year_id?: number
+        }
+        Relationships: []
+      }
       notes: {
         Row: {
           content: string
