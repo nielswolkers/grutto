@@ -108,6 +108,8 @@ impl MagisterClient {
             s(&year["groep"]["Omschrijving"]), s(&year["groep"]["omschrijving"]),
             s(&year["Groep"]["Code"]), s(&year["groep"]["code"]),
             s(&year["Lesgroep"]["Omschrijving"]), s(&year["lesgroep"]["Omschrijving"]),
+            s(&year["Type"]["Omschrijving"]), s(&year["type"]["Omschrijving"]),
+            s(&year["Opleiding"]["Omschrijving"]), s(&year["opleiding"]["Omschrijving"]),
         ]);
         let period = format!("{}–{}", begin.get(0..4).unwrap_or(""), end.get(0..4).unwrap_or(""));
         (class_label, period)

@@ -11,13 +11,25 @@
   },
   "app": {
     "windows": [
-      { "label": "main", "title": "Grutto", "width": 960, "height": 720 }
+      {
+        "label": "main",
+        "title": "Grutto",
+        "width": 960,
+        "height": 720
+      }
     ],
-    "security": { "csp": null }
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
-    "targets": ["dmg"],
-    "icon": ["icons/icon.png"]
+    "targets": [
+      "dmg"
+    ],
+    "icon": [
+      "icons/icon.png",
+      "icons/icon.icns"
+    ]
   }
 }

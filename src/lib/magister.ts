@@ -75,8 +75,9 @@ export async function loadYears(): Promise<SchoolYear[]> {
 export async function disconnectMagister() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
-  await supabase.from("magister_years").delete().eq("user_id", user.id);
-  await supabase.from("magister_connections").delete().eq("user_id", user.id);
+  // Disconnect credentials/settings while preserving the user's imported grade history.
+  const { error } = await supabase.from("magister_connections").delete().eq("user_id", user.id);
+  if (error) throw error;
   window.dispatchEvent(new Event("magister-updated"));
 }
 
