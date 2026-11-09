@@ -1,5 +1,5 @@
 use crate::auth::{self, Tokens};
-use crate::{AttendanceSummary, CourseAverage, GradeRow, SchoolYearData};
+use crate::{AttendanceSummary, CourseAverage, GradeRow, SchoolYearData, YearInfo};
 use reqwest::StatusCode;
 use serde_json::Value;
 use std::time::Duration;
@@ -98,7 +98,36 @@ impl MagisterClient {
         }
     }
 
-    pub async fn fetch_all(&mut self) -> Result<Vec<SchoolYearData>, String> {
+    pub fn refresh_token(&self) -> Option<String> { self.tokens.refresh_token.clone() }
+
+    fn year_label(year: &Value) -> (String, String) {
+        let begin = first_string(&[s(&year["begin"]), s(&year["Begin"])]);
+        let end = first_string(&[s(&year["einde"]), s(&year["Einde"])]);
+        let class_label = first_string(&[
+            s(&year["Groep"]["Omschrijving"]), s(&year["Groep"]["omschrijving"]),
+            s(&year["groep"]["Omschrijving"]), s(&year["groep"]["omschrijving"]),
+            s(&year["Groep"]["Code"]), s(&year["groep"]["code"]),
+            s(&year["Lesgroep"]["Omschrijving"]), s(&year["lesgroep"]["Omschrijving"]),
+        ]);
+        let period = format!("{}–{}", begin.get(0..4).unwrap_or(""), end.get(0..4).unwrap_or(""));
+        (class_label, period)
+    }
+
+    /// Lists the student's school years (classes) without fetching grades.
+    pub async fn list_years(&mut self) -> Result<Vec<YearInfo>, String> {
+        let b = self.base.clone();
+        let account = self.get_json(&format!("{b}/api/account")).await?;
+        let pid = account["Persoon"]["Id"].as_i64().ok_or("No student ID in account")?;
+        let years_json = self.get_json(&format!("{b}/api/leerlingen/{pid}/aanmeldingen?begin=1970-01-01")).await?;
+        Ok(items(&years_json).iter().filter_map(|y| {
+            let id = y["id"].as_i64().or(y["Id"].as_i64())?;
+            let (class_label, period) = Self::year_label(y);
+            let begin = first_string(&[s(&y["begin"]), s(&y["Begin"])]);
+            Some(YearInfo { id, class_label, period, begin })
+        }).collect())
+    }
+
+    pub async fn fetch_all(&mut self, only: Option<Vec<i64>>) -> Result<Vec<SchoolYearData>, String> {
         let b = self.base.clone();
         let account = self.get_json(&format!("{b}/api/account")).await?;
         let pid = account["Persoon"]["Id"].as_i64().ok_or("No student ID in account")?;
@@ -109,6 +138,7 @@ impl MagisterClient {
         let mut result = Vec::new();
         for year in years {
             let yid = year["id"].as_i64().or(year["Id"].as_i64()).ok_or("School year without id")?;
+            if let Some(ids) = &only { if !ids.contains(&yid) { continue; } }
             let begin = first_string(&[s(&year["begin"]), s(&year["Begin"])]);
             let end = first_string(&[s(&year["einde"]), s(&year["Einde"])]);
             if begin.is_empty() || end.is_empty() { continue; }
@@ -150,7 +180,15 @@ impl MagisterClient {
                 let weight = first_string(&[
                     s(&g["kolom"]["weegfactor"]), s(&extra["Weging"]), s(&g["weegfactor"]),
                 ]);
-                grades.push(GradeRow { course, title, grade: value, weight });
+                let subtitle = first_string(&[
+                    s(&extra["WerkInformatieOmschrijving"]), s(&g["CijferKolom"]["KolomNaam"]), s(&g["CijferKolom"]["KolomKop"]),
+                ]);
+                let date = first_string(&[s(&g["DatumIngevoerd"]), s(&g["ingevoerdOp"]), s(&g["datumIngevoerd"])]);
+                let period = first_string(&[s(&g["CijferPeriode"]["Naam"]), s(&g["CijferPeriode"]["Omschrijving"])]);
+                let pta = g["CijferKolom"]["IsPTAKolom"].as_bool()
+                    .or(extra["IsPTAKolom"].as_bool()).or(extra["IsPTA"].as_bool()).unwrap_or(false);
+                let passed = g["IsVoldoende"].as_bool();
+                grades.push(GradeRow { course, title, grade: value, weight, subtitle, date, period, pta, passed, column_id: col });
             }
 
             let attendance = self.fetch_attendance(pid, &begin, &end).await.unwrap_or_default();
