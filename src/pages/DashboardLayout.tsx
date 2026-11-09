@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
+import { useEffect as useMagEffect } from 'react';
+import { autoSync } from '@/lib/magister';
 import { Sidebar } from '@/components/Sidebar';
 import { useSpotifyPlayer } from '@/hooks/useSpotifyPlayer';
 import { getStoredAccessToken } from '@/auth/spotifyAuth';
@@ -41,6 +43,7 @@ export default function DashboardLayout() {
     location.pathname === route || location.pathname.startsWith(route + '/')
   );
 
+  useMagEffect(() => { autoSync(); }, []);
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />

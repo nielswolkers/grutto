@@ -437,7 +437,7 @@ const Materialen = ({ section }: { section: "recent" | "bestanden" }) => {
           {(() => {
             const filtered = studySets
               .filter((s: any) => !selectedSubjectId || s.subjectId === selectedSubjectId)
-              .filter((s: any) => !searchQuery || s.title.toLowerCase().includes(searchQuery.toLowerCase()))
+              .filter((s: any) => !searchQuery || s.title.toLowerCase().includes(String(searchQuery).toLowerCase()))
               .sort((a, b) =>
                 sortBy === "name"
                   ? a.title.localeCompare(b.title)

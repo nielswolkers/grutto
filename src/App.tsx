@@ -19,6 +19,8 @@ import Account from "./pages/Account";
 import Taken from "./pages/Taken";
 import Agenda from "./pages/Agenda";
 import PlaceholderPage from "./pages/PlaceholderPage";
+import Cijfers from "./pages/Cijfers";
+import CijfersVak from "./pages/CijfersVak";
 import Studie from "./pages/Studie";
 import UserProfile from "./pages/UserProfile";
 import GroupProfile from "./pages/GroupProfile";
@@ -79,7 +81,8 @@ function AppRoutes() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/agenda" element={<Agenda />} />
         <Route path="/studie" element={<Studie />} />
-        <Route path="/cijfers" element={<PlusRoute><PlaceholderPage /></PlusRoute>} />
+        <Route path="/cijfers" element={<PlusRoute><Cijfers /></PlusRoute>} />
+        <Route path="/cijfers/vak/:course" element={<PlusRoute><CijfersVak /></PlusRoute>} />
         <Route path="/taken" element={<PlusRoute><Taken /></PlusRoute>} />
         <Route path="/studiesets" element={<Materialen section="recent" />} />
         <Route path="/bestanden" element={<Materialen section="bestanden" />} />
